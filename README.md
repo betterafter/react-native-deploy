@@ -47,11 +47,18 @@ npm i -D file:../react-native-deploy/packages/cli
 }
 ```
 
-Env (CI / shell):
+Env (CI / shell) — or save once locally:
 
 ```bash
-export RND_API_TOKEN=…   # same as console DEPLOY_API_TOKEN
+npx rnd token add
+# stores in ~/.rnd/credentials  (ait token add와 동일 패턴)
+
+# optional named profile
+npx rnd token add staging --api-key '…'
+npx rnd deploy --profile staging
 ```
+
+`RND_API_TOKEN` env / `--token` 이 있으면 그걸 우선하고, 없으면 `~/.rnd/credentials`의 `default` 프로필을 씁니다.
 
 ### 3. Ship a QA build
 

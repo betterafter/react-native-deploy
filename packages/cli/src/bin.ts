@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
+import { createInterface } from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import {
+  addToken,
+  credentialsPath,
+  loadCredentials,
+  removeToken,
+  resolveToken,
+} from './credentials.js';
 
 type Platform = 'ios' | 'android';
 
@@ -166,7 +175,8 @@ function addDeployOptions(cmd: Command) {
     .option('--sdk <version>', 'Optional SDK / RN version label')
     .option('--bundle-id <id>', 'iOS bundle id for Ad Hoc manifest')
     .option('--api-url <url>', 'Console API base')
-    .option('--token <token>', 'Deploy API token');
+    .option('--token <token>', 'Deploy API token (or use `rnd token add`)')
+    .option('--profile <name>', 'Credentials profile name', 'default');
 }
 
 async function runDeploy(opts: Record<string, string | undefined>) {
@@ -188,6 +198,8 @@ async function runDeploy(opts: Record<string, string | undefined>) {
     );
   }
 
+  const token = resolveToken({ token: opts.token, profile: opts.profile });
+
   await deployFile({
     file,
     appId: opts.app ?? cfg.appId ?? env('RND_APP_ID', 'my-app'),
@@ -197,7 +209,7 @@ async function runDeploy(opts: Record<string, string | undefined>) {
     sdk: opts.sdk,
     bundleId: opts.bundleId ?? cfg.bundleId ?? process.env.RND_BUNDLE_ID,
     apiUrl: opts.apiUrl ?? cfg.apiUrl ?? env('RND_API_URL'),
-    token: opts.token ?? env('RND_API_TOKEN'),
+    token,
   });
 }
 
@@ -209,12 +221,60 @@ addDeployOptions(
   await runDeploy(opts);
 });
 
-// Alias kept for older docs
 addDeployOptions(
   program.command('upload').description('Alias of `rnd deploy`'),
 ).action(async (opts) => {
   await runDeploy(opts);
 });
+
+const tokenCmd = program
+  .command('token')
+  .description('Manage locally saved API tokens (~/.rnd/credentials)');
+
+tokenCmd
+  .command('add')
+  .description('Save an API token locally (like `ait token add`)')
+  .option('--api-key <token>', 'API token value')
+  .argument('[profile]', 'Profile name', 'default')
+  .action(async (profile: string, opts: { apiKey?: string }) => {
+    let token = opts.apiKey?.trim();
+    if (!token) {
+      const rl = createInterface({ input, output });
+      token = (await rl.question('API token: ')).trim();
+      rl.close();
+    }
+    if (!token) throw new Error('Empty token');
+    addToken(profile || 'default', token);
+    process.stdout.write(`Saved profile "${profile || 'default'}" → ${credentialsPath()}\n`);
+  });
+
+tokenCmd
+  .command('remove')
+  .description('Remove a saved profile')
+  .argument('[profile]', 'Profile name', 'default')
+  .action((profile: string) => {
+    const ok = removeToken(profile || 'default');
+    if (!ok) {
+      process.stdout.write(`Profile "${profile}" not found.\n`);
+      return;
+    }
+    process.stdout.write(`Removed profile "${profile}".\n`);
+  });
+
+tokenCmd
+  .command('list')
+  .description('List saved profile names (tokens are not printed)')
+  .action(() => {
+    const data = loadCredentials();
+    const names = Object.keys(data);
+    if (names.length === 0) {
+      process.stdout.write(`No profiles in ${credentialsPath()}\n`);
+      return;
+    }
+    for (const name of names) {
+      process.stdout.write(`${name}\n`);
+    }
+  });
 
 program
   .command('open')
