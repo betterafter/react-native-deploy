@@ -1,0 +1,282 @@
+:root {
+  --bg: #f2f4f6;
+  --surface: #ffffff;
+  --text: #191f28;
+  --muted: #8b95a1;
+  --border: #e5e8eb;
+  --blue: #3182f6;
+  --blue-soft: #e8f3ff;
+  --orange: #f8893d;
+  --red: #f04452;
+  --green: #03b26c;
+  --grey: #b0b8c1;
+  --radius: 12px;
+  --font: 'Pretendard', 'Apple SD Gothic Neo', system-ui, -apple-system, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a {
+  color: var(--blue);
+  text-decoration: none;
+}
+
+button {
+  font-family: inherit;
+}
+
+.page {
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 24px 64px;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.header h1 {
+  margin: 0 0 6px;
+  font-size: 24px;
+  font-weight: 700;
+}
+
+.header p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.btn {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 10px 16px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.btn-primary {
+  background: var(--blue);
+  color: #fff;
+}
+
+.btn-ghost {
+  background: var(--surface);
+  border-color: var(--border);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tabs {
+  display: flex;
+  gap: 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.tab {
+  padding: 12px 2px;
+  color: var(--muted);
+  font-weight: 600;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+
+.tab.active {
+  color: var(--text);
+  border-bottom-color: var(--text);
+}
+
+.banner {
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 20px;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.toolbar h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.toolbar-right {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+select,
+input[type='search'],
+input[type='text'] {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: #fff;
+  font: inherit;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 14px 10px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: middle;
+}
+
+th {
+  color: var(--muted);
+  font-weight: 500;
+  font-size: 13px;
+}
+
+.version-link {
+  font-weight: 600;
+  color: var(--blue);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--grey);
+}
+
+.dot.ready {
+  background: var(--green);
+}
+.dot.testing {
+  background: var(--orange);
+}
+.dot.store_pending {
+  background: var(--blue);
+}
+.dot.released {
+  background: var(--grey);
+}
+.dot.failed {
+  background: var(--red);
+}
+
+.row-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.memo {
+  color: var(--muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.empty {
+  padding: 48px 16px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  z-index: 50;
+}
+
+.modal {
+  background: #fff;
+  border-radius: 16px;
+  padding: 24px;
+  width: min(400px, 100%);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.18);
+}
+
+.modal h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.modal p {
+  margin: 0 0 16px;
+  color: var(--muted);
+  font-size: 13px;
+  word-break: break-all;
+}
+
+.modal img {
+  display: block;
+  width: 280px;
+  height: 280px;
+  margin: 0 auto 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+}
+
+.code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: #f9fafb;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  white-space: pre-wrap;
+}

@@ -1,0 +1,26 @@
+{
+  "name": "rnd",
+  "version": "0.1.0",
+  "description": "CLI for react-native-deploy — upload builds like `ait deploy`",
+  "type": "module",
+  "bin": {
+    "rnd": "./dist/bin.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/bin.ts --format esm --dts --out-dir dist --clean --banner.mjs '#!/usr/bin/env node'",
+    "start": "tsx src/bin.ts",
+    "dev": "tsx src/bin.ts"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.10",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2"
+  }
+}
