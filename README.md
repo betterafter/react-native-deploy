@@ -1,77 +1,101 @@
 # react-native-deploy
 
-Self-hosted **React Native release console** — inspired by Apps in Toss style version boards.
+Self-hosted React Native **release console** + CLI.
 
-- Upload IPA / APK with a short CLI (`rnd upload`)
-- Version list + memo + status on a Next.js dashboard
-- **Test** opens an install QR (`itms-services://` for iOS Ad Hoc, HTTPS APK for Android)
-- **No database** for MVP — Cloudflare R2 stores binaries + JSON metadata
-- One shared `DEPLOY_API_TOKEN` (customize via env)
-
-```
-divident_rn_app/          # your app
-react-native-deploy/      # this tool (sibling)
-```
-
-## Quick start
-
-### 1. Install
+App developer UX (Apps in Toss style):
 
 ```bash
+npm run build          # your existing IPA/APK / bundle step
+npx rnd deploy         # upload to the console → QR test
+```
+
+---
+
+## For app developers (day to day)
+
+### 1. Install CLI in the app
+
+```bash
+# from your RN app folder
+npm i -D rnd@github:betterafter/react-native-deploy#main:packages/cli
+# or locally while developing the tool:
+npm i -D file:../react-native-deploy/packages/cli
+```
+
+```json
+{
+  "scripts": {
+    "build": "… your ios/android build …",
+    "deploy": "rnd deploy"
+  }
+}
+```
+
+### 2. One-time config in the app root
+
+`rnd.config.json`:
+
+```json
+{
+  "appId": "my-app",
+  "bundleId": "com.example.app",
+  "apiUrl": "https://your-console.vercel.app",
+  "artifact": {
+    "ios": "./build/App.ipa",
+    "android": "./android/app/build/outputs/apk/release/app-release.apk"
+  }
+}
+```
+
+Env (CI / shell):
+
+```bash
+export RND_API_TOKEN=…   # same as console DEPLOY_API_TOKEN
+```
+
+### 3. Ship a QA build
+
+```bash
+npm run build
+npx rnd deploy -m "ad size center"
+# or: npm run deploy -- -m "ad size center"
+```
+
+That’s the whole loop. Open the console URL printed at the end → **테스트** → QR.
+
+---
+
+## For console operators (once)
+
+Host the dashboard (Vercel / Node). This is the “Apps in Toss console” equivalent — **not** something every developer runs before each deploy.
+
+```bash
+git clone https://github.com/betterafter/react-native-deploy.git
 cd react-native-deploy
 cp .env.example apps/web/.env.local
 # fill R2_* , DEPLOY_API_TOKEN, APP_BASE_URL
 npm install
+npm run dev    # or deploy apps/web to Vercel
 ```
-
-### 2. Run console
-
-```bash
-npm run dev
-# http://localhost:3000
-```
-
-### 3. Upload a build
-
-```bash
-export RND_API_URL=http://localhost:3000
-export RND_API_TOKEN=same-as-DEPLOY_API_TOKEN
-export RND_APP_ID=my-app
-
-# from packages/cli
-npm run start -w rnd -- upload -f /path/to/app.ipa \
-  --bundle-id com.example.app \
-  -m "ad size center"
-```
-
-Or after `npm run build -w rnd` and linking:
-
-```bash
-npx rnd upload -f ./app.apk -a my-app -m "qa build"
-```
-
-## Env (console)
-
-| Variable | Required | Purpose |
-|----------|----------|---------|
-| `APP_BASE_URL` | yes | Public URL of the dashboard |
-| `DEPLOY_API_TOKEN` | yes | Bearer token for CLI |
-| `R2_ACCOUNT_ID` | yes | Cloudflare account id |
-| `R2_ACCESS_KEY_ID` | yes | R2 API token access key |
-| `R2_SECRET_ACCESS_KEY` | yes | R2 secret |
-| `R2_BUCKET` | yes | Bucket name |
-| `R2_PUBLIC_BASE_URL` | yes | Public/CDN base for objects |
-| `DEFAULT_APP_ID` | no | Default app in UI |
-| `DEFAULT_IOS_BUNDLE_ID` | no | Fallback if CLI omits `--bundle-id` |
-
-## Env (CLI)
 
 | Variable | Purpose |
 |----------|---------|
-| `RND_API_URL` | Console origin |
-| `RND_API_TOKEN` | Same as `DEPLOY_API_TOKEN` |
-| `RND_APP_ID` | Default `--app` |
-| `RND_BUNDLE_ID` | Default iOS bundle id |
+| `APP_BASE_URL` | Public console URL |
+| `DEPLOY_API_TOKEN` | Shared token for `rnd deploy` |
+| `R2_ACCOUNT_ID` / `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET` / `R2_PUBLIC_BASE_URL` | Artifact + JSON meta storage (no DB) |
+
+---
+
+## Mapping to Apps in Toss
+
+| Apps in Toss | react-native-deploy |
+|--------------|---------------------|
+| `npm run build` / `ait build` | Your app `npm run build` (IPA/APK) |
+| `npx ait deploy` | `npx rnd deploy` |
+| Toss console + QR | Your hosted Next console + QR |
+| Hosted by Toss | You host console once (Vercel + R2) |
+
+---
 
 ## R2 layout
 
@@ -82,29 +106,11 @@ apps/{appId}/builds/{buildId}/{file}
 apps/{appId}/builds/{buildId}/manifest.plist   # iOS
 ```
 
-## Use from an RN app (ait-style)
-
-In your app `package.json`:
-
-```json
-{
-  "devDependencies": {
-    "rnd": "file:../react-native-deploy/packages/cli"
-  },
-  "scripts": {
-    "deploy:qa": "rnd upload -f ./build/app.ipa -m \"$npm_config_memo\""
-  }
-}
-```
-
-Or ship `rnd` as `bin` from a future `@your-org/rn-kit` dependency so apps only install the kit.
-
 ## Roadmap
 
-- [ ] Play Console / App Store Connect promote from **출시 요청**
-- [ ] Optional Postgres meta store adapter
-- [ ] Multi API keys / apps ACL
-- [ ] GitHub Actions example workflow
+- [ ] Play / App Store Connect from **출시 요청**
+- [ ] Publish `rnd` to npm
+- [ ] Optional kit package that ships `rnd` as a transitive bin
 
 ## License
 

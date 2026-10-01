@@ -1,0 +1,9 @@
+{
+  "appId": "my-app",
+  "bundleId": "com.example.app",
+  "apiUrl": "http://localhost:3000",
+  "artifact": {
+    "ios": "./build/App.ipa",
+    "android": "./android/app/build/outputs/apk/release/app-release.apk"
+  }
+}

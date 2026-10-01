@@ -10,7 +10,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/bin.ts --format esm --dts --out-dir dist --clean --banner.mjs '#!/usr/bin/env node'",
+    "build": "tsup src/bin.ts --format esm --dts --out-dir dist --clean",
     "start": "tsx src/bin.ts",
     "dev": "tsx src/bin.ts"
   },
