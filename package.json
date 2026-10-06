@@ -1,8 +1,14 @@
 {
-  "name": "react-native-deploy",
+  "name": "rnd",
   "private": true,
   "version": "0.1.0",
   "description": "Self-hosted React Native release console — upload builds, QR test installs, promote to stores.",
+  "bin": {
+    "rnd": "./packages/cli/dist/bin.js"
+  },
+  "files": [
+    "packages/cli/dist"
+  ],
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -10,10 +16,14 @@
   "scripts": {
     "dev": "npm run dev -w @rnd/web",
     "build": "npm run build -w @rnd/web",
-    "cli": "npm run start -w rnd"
+    "build:cli": "npm run build -w @rnd/cli",
+    "cli": "npm run start -w @rnd/cli"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "commander": "^13.1.0"
   },
   "license": "Apache-2.0"
 }

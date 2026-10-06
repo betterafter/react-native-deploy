@@ -1,5 +1,5 @@
 {
-  "name": "rnd",
+  "name": "@rnd/cli",
   "version": "0.1.0",
   "description": "CLI for react-native-deploy — upload builds like `ait deploy`",
   "type": "module",
@@ -10,9 +10,12 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup src/bin.ts --format esm --dts --out-dir dist --clean",
+    "build": "tsup",
     "start": "tsx src/bin.ts",
     "dev": "tsx src/bin.ts"
+  },
+  "engines": {
+    "node": ">=20"
   },
   "dependencies": {
     "commander": "^13.1.0"

@@ -29,11 +29,28 @@ npx rnd deploy -m "메모"
 
 ### 1. CLI 설치 (앱 레포)
 
+앱 루트에 `package.json`이 있는 Node / React Native 프로젝트에서 실행하세요.  
+(순수 Android/iOS 네이티브 전용 폴더에는 `package.json`이 없어 `npm i`가 실패합니다.)
+
 ```bash
-npm i -D rnd@github:betterafter/react-native-deploy#main:packages/cli
-# 또는 로컬 개발 중
-npm i -D file:../react-native-deploy/packages/cli
+# 권장 — 저장소 루트가 `rnd` CLI로 설치됩니다
+npm i -D github:betterafter/react-native-deploy
+
+# pnpm / yarn
+pnpm add -D github:betterafter/react-native-deploy
+yarn add -D github:betterafter/react-native-deploy
+
+# 이 저장소를 로컬에서 같이 고칠 때
+npm i -D file:../react-native-deploy
 ```
+
+끝나면 앱 루트에서 확인합니다.
+
+```bash
+npx rnd --help
+```
+
+이 저장소에서 CLI 소스를 고친 뒤에는 `npm run build:cli`로 `packages/cli/dist`를 다시 만들고 커밋하세요. (다른 앱은 빌드된 dist를 그대로 설치합니다.)
 
 ```json
 {
@@ -147,7 +164,7 @@ apps/{appId}/builds/{buildId}/manifest.plist   # iOS Ad Hoc
 ## 로드맵
 
 - [ ] **출시 요청** → Play / App Store Connect 연동
-- [ ] npm에 `rnd` 퍼블리시
+- [ ] npm에 `rnd` 퍼블리시 (지금은 `github:betterafter/react-native-deploy`로 설치)
 - [ ] 앱 키트 패키지에 `rnd` bin 포함 (framework가 `ait`를 실어 나르듯)
 
 ## License

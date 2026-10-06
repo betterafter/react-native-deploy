@@ -1,6 +1,8 @@
 node_modules
 .next
 dist
+!packages/cli/dist/
+!packages/cli/dist/**
 .turbo
 .env
 .env.local
@@ -10,4 +12,3 @@ coverage
 .vercel
 *.tsbuildinfo
 apps/web/.env*.local
-packages/cli/dist
