@@ -179,24 +179,44 @@ function addDeployOptions(cmd: Command) {
     .option('--profile <name>', 'Credentials profile name', 'default');
 }
 
+function resolveArtifact(
+  cfg: RndConfig,
+  platform: string | undefined,
+  fileFlag: string | undefined,
+): string {
+  if (fileFlag) return fileFlag;
+  if (platform === 'android') {
+    if (!cfg.artifact?.android) {
+      throw new Error('No Android artifact. Set artifact.android in rnd.config.json or pass -f.');
+    }
+    return cfg.artifact.android;
+  }
+  if (platform === 'ios') {
+    if (!cfg.artifact?.ios) {
+      throw new Error('No iOS artifact. Set artifact.ios in rnd.config.json or pass -f.');
+    }
+    return cfg.artifact.ios;
+  }
+
+  const ios = cfg.artifact?.ios;
+  const android = cfg.artifact?.android;
+  const iosOk = Boolean(ios && existsSync(resolve(process.cwd(), ios)));
+  const androidOk = Boolean(android && existsSync(resolve(process.cwd(), android)));
+  if (iosOk && androidOk) {
+    throw new Error('Both IPA and APK exist. Pass --platform ios or --platform android.');
+  }
+  if (androidOk && android) return android;
+  if (iosOk && ios) return ios;
+  throw new Error(
+    'No artifact file found. Build the app first, then either:\n' +
+      '  npx rnd deploy -f ./path/to/app.apk\n' +
+      'or set artifact.ios / artifact.android in rnd.config.json to a file that exists.',
+  );
+}
+
 async function runDeploy(opts: Record<string, string | undefined>) {
   const cfg = loadConfig();
-  const platform = opts.platform as Platform | undefined;
-  const fileFromConfig =
-    platform === 'android'
-      ? cfg.artifact?.android
-      : platform === 'ios'
-        ? cfg.artifact?.ios
-        : cfg.artifact?.ios || cfg.artifact?.android;
-
-  const file = opts.file ?? fileFromConfig;
-  if (!file) {
-    throw new Error(
-      'No artifact. Run your app build first, then either:\n' +
-        '  npx rnd deploy -f ./path/to/app.ipa\n' +
-        'or set artifact.ios / artifact.android in rnd.config.json',
-    );
-  }
+  const file = resolveArtifact(cfg, opts.platform, opts.file);
 
   const token = resolveToken({ token: opts.token, profile: opts.profile });
 

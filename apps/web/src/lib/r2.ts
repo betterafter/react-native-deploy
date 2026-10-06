@@ -1,4 +1,4 @@
-import { PutObjectCommand, GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PutObjectCommand, GetObjectCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 import type { AppIndex, BuildRecord } from '@rnd/shared';
 
@@ -105,6 +105,42 @@ export async function saveBuild(build: BuildRecord) {
   }
   index.updatedAt = new Date().toISOString();
   await writeJson(indexKey(build.appId), index);
+}
+
+export async function listApps(): Promise<
+  { appId: string; updatedAt: string; buildCount: number }[]
+> {
+  const { client, bucket } = getR2();
+  const ids: string[] = [];
+  let token: string | undefined;
+  do {
+    const out = await client.send(
+      new ListObjectsV2Command({
+        Bucket: bucket,
+        Prefix: 'apps/',
+        Delimiter: '/',
+        ContinuationToken: token,
+      }),
+    );
+    for (const prefix of out.CommonPrefixes ?? []) {
+      const appId = prefix.Prefix?.replace(/^apps\//, '').replace(/\/$/, '');
+      if (appId) ids.push(appId);
+    }
+    token = out.IsTruncated ? out.NextContinuationToken : undefined;
+  } while (token);
+
+  const apps: { appId: string; updatedAt: string; buildCount: number }[] = [];
+  for (const appId of ids) {
+    const stored = await readJson<AppIndex>(indexKey(appId));
+    if (!stored?.buildIds?.length) continue;
+    apps.push({
+      appId,
+      updatedAt: stored.updatedAt,
+      buildCount: stored.buildIds.length,
+    });
+  }
+  apps.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
+  return apps;
 }
 
 export async function listBuilds(appId: string): Promise<BuildRecord[]> {
