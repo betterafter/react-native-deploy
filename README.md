@@ -133,6 +133,7 @@ npm run dev          # 로컬 확인
 | `R2_PUBLIC_BASE_URL` | 객체 공개/CDN 베이스 URL |
 | `DEFAULT_APP_ID` | (선택) UI 기본 앱 id |
 | `DEFAULT_IOS_BUNDLE_ID` | (선택) CLI에 bundle id 없을 때 |
+| `SANDBOX_APP_URL` | (선택) 샌드박스 설치 파일의 공개 URL. 띠 이름은 파일 이름 |
 
 메타·파일은 전부 R2. **DB 없음.**
 
@@ -158,6 +159,28 @@ apps/{appId}/builds/{buildId}/meta.json
 apps/{appId}/builds/{buildId}/{file}
 apps/{appId}/builds/{buildId}/manifest.plist   # iOS Ad Hoc
 ```
+
+---
+
+## 샌드박스 앱
+
+[react-native-deploy-app](https://github.com/betterafter/react-native-deploy-app)은 폰에 한 번 설치하는 샌드박스입니다. Expo Go가 카메라·위치·알림처럼 Expo SDK 네이티브를 미리 넣어 두는 것과 같이, [Expo Go(SDK 57)에 들어 있는 네이티브 모듈](https://github.com/expo/expo/blob/sdk-57/apps/expo-go/package.json)을 설치본에 담습니다. 이 앱이 깔린 폰에서는 배포한 화면을 샌드박스 안에서 보고, 없으면 각 프로젝트의 APK·IPA를 받아 테스트합니다.
+
+샌드박스에 없는 자체 네이티브가 프로젝트에 추가되면, 그 기능은 지금 설치된 샌드박스 안에서 동작하지 않습니다. 그 배포는 프로젝트 설치 파일로 확인하거나, 그 네이티브가 포함된 샌드박스를 다시 만들어 설치합니다.
+
+### 설치 파일을 Cloudflare에 연결
+
+이미 콘솔에 쓰는 R2 버킷에 설치 파일을 올리고, 공개 URL을 콘솔에 연결합니다. 띠에 나오는 이름은 환경변수로 따로 적지 않습니다. URL 경로의 파일 이름에서 확장자(`.apk`, `.ipa`, `.aab`)를 뺀 값입니다.
+
+1. [react-native-deploy-app](https://github.com/betterafter/react-native-deploy-app)에서 설치 파일을 만듭니다. 방법은 그 저장소 README에 있습니다.
+2. 테스터에게 보일 이름으로 R2에 올립니다. 예: `Freecap.apk`
+3. 콘솔 환경변수에 그 공개 URL을 넣습니다. `R2_PUBLIC_BASE_URL`과 같은 공개 주소입니다.
+
+```bash
+SANDBOX_APP_URL=https://pub-xxxxx.r2.dev/Freecap.apk
+```
+
+콘솔을 다시 배포하면 상단에 **Freecap을 설치해서 간편하게 테스트해보세요!** 와 **다운로드**가 나옵니다. 다운로드는 그 파일로 이동해서 샌드박스 앱이 설치됩니다. `SANDBOX_APP_URL`이 없으면 띠는 나오지 않습니다.
 
 ---
 

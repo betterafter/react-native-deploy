@@ -38,6 +38,27 @@ button {
   font-family: inherit;
 }
 
+.sandbox-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  padding: 12px 20px;
+  background: var(--blue-soft);
+  border-bottom: 1px solid #c9e2ff;
+  color: var(--text);
+  font-weight: 600;
+}
+
+.sandbox-banner p {
+  margin: 0;
+}
+
+.sandbox-banner a {
+  text-decoration: none;
+}
+
 .page {
   max-width: 1120px;
   margin: 0 auto;

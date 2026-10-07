@@ -38,6 +38,16 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [testTarget, setTestTarget] = useState<BuildRecord | null>(null);
   const [token, setToken] = useState('');
+  const [sandbox, setSandbox] = useState<{ name: string; url: string } | null>(null);
+
+  useEffect(() => {
+    void fetch('/api/sandbox')
+      .then((res) => res.json())
+      .then((data: { sandbox?: { name: string; url: string } | null }) => {
+        setSandbox(data.sandbox ?? null);
+      })
+      .catch(() => setSandbox(null));
+  }, []);
 
   useEffect(() => {
     const saved = window.localStorage.getItem('rnd_deploy_token');
@@ -152,6 +162,15 @@ export default function HomePage() {
   const filtering = statusFilter !== 'all' || q.trim().length > 0;
 
   return (
+    <>
+    {sandbox ? (
+      <div className="sandbox-banner">
+        <p>{sandbox.name}을 설치해서 간편하게 테스트해보세요!</p>
+        <a className="btn btn-primary" href={sandbox.url}>
+          다운로드
+        </a>
+      </div>
+    ) : null}
     <div className="page">
       <header className="header">
         <div>
@@ -304,5 +323,6 @@ export default function HomePage() {
         </div>
       )}
     </div>
+    </>
   );
 }
