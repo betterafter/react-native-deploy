@@ -448,8 +448,7 @@ export default function HomePage() {
             ) : testPair.sandboxBuild ? (
               <>
                 <p>
-                  QR을 스캔하면 샌드박스 앱이 이 화면을 저장합니다. 앱을 완전히 종료한 뒤
-                  다시 열면 로드됩니다.
+                  QR을 스캔하면 샌드박스 목록에 저장됩니다. 목록에서 이 항목을 누르면 실행됩니다.
                 </p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img

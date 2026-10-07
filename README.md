@@ -183,7 +183,7 @@ apps/{appId}/builds/{buildId}/manifest.plist   # iOS Ad Hoc
 
 [react-native-deploy-app](https://github.com/betterafter/react-native-deploy-app)은 폰에 한 번 설치하는 샌드박스입니다. Expo Go가 카메라·위치·알림처럼 Expo SDK 네이티브를 미리 넣어 두는 것과 같이, [Expo Go(SDK 57)에 들어 있는 네이티브 모듈](https://github.com/expo/expo/blob/sdk-57/apps/expo-go/package.json)을 설치본에 담습니다. 런타임 버전은 `57.0.0`입니다.
 
-QR 테스트는 이 샌드박스가 설치된 폰에서만 동작합니다. 콘솔 QR은 웹 페이지를 열고, 그 페이지가 샌드박스에 이번 export 주소를 저장합니다. 저장 뒤 앱을 완전히 종료하고 다시 열면 Expo Updates가 그 화면을 받아 실행합니다. 샌드박스가 없으면 각 프로젝트의 APK·IPA QR로 설치해 테스트합니다.
+QR 테스트는 이 샌드박스가 설치된 폰에서만 동작합니다. 콘솔 QR을 스캔하면 샌드박스 목록에 저장되고, 목록에서 누르면 Expo Updates로 그 화면을 실행합니다. 실행 중 목록으로 돌아가려면 `rnd-sandbox://home` 링크를 엽니다. 샌드박스가 없으면 각 프로젝트의 APK·IPA QR로 설치해 테스트합니다.
 
 샌드박스에 없는 자체 네이티브가 프로젝트에 추가되면, 그 기능은 지금 설치된 샌드박스 안에서 동작하지 않습니다. 그 배포는 프로젝트 설치 파일로 확인하거나, 그 네이티브가 포함된 샌드박스를 다시 만들어 설치합니다. QR 테스트를 쓰려면 아래 설정이 반영된 샌드박스를 다시 빌드해 설치해야 합니다.
 

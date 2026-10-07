@@ -42,7 +42,9 @@ export default async function TestPage({
 
   const headerList = await headers();
   const manifest = `${consoleBase(headerList)}/api/manifest?appId=${encodeURIComponent(appId)}&id=${encodeURIComponent(buildId)}`;
-  const deepLink = `rnd-sandbox://test?manifest=${encodeURIComponent(manifest)}`;
+  const title = `${build.appId} ${build.version}`;
+  const deepLink = `rnd-sandbox://test?manifest=${encodeURIComponent(manifest)}&title=${encodeURIComponent(title)}`;
+  const homeLink = 'rnd-sandbox://home';
 
   return (
     <div className="page">
@@ -57,14 +59,18 @@ export default async function TestPage({
       <section className="card">
         <ol className="steps">
           <li>샌드박스 앱이 설치되어 있어야 합니다. 콘솔 상단에서 받을 수 있습니다.</li>
-          <li>샌드박스 앱이 이 빌드를 저장합니다.</li>
-          <li>앱을 완전히 종료합니다. 홈으로 내리는 것만으로는 부족합니다.</li>
-          <li>샌드박스를 다시 열면 이 화면이 로드됩니다.</li>
+          <li>QR을 스캔하면 샌드박스 목록에 저장됩니다. 목록에서 누르면 실행됩니다.</li>
+          <li>실행 중 목록으로 돌아가려면 아래 런처 링크를 여세요.</li>
         </ol>
         <OpenSandbox deepLink={deepLink} />
+        <p style={{ marginTop: 16 }}>
+          <a className="btn btn-ghost" href={homeLink}>
+            샌드박스 런처로 돌아가기
+          </a>
+        </p>
         <p className="note">
-          다른 빌드로 바뀌지 않으면 샌드박스 앱의 저장공간을 지운 뒤 이 QR을 다시 스캔하세요.
-          화면이 켜지자마자 종료되면 샌드박스를 다시 설치해야 합니다.
+          목록에 안 보이면 런처로 돌아간 뒤 QR을 다시 스캔하세요. 화면이 켜지자마자 종료되면
+          샌드박스를 다시 설치해야 합니다.
         </p>
       </section>
     </div>
