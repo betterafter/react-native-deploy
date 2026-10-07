@@ -11,6 +11,7 @@ import {
   removeToken,
   resolveToken,
 } from './credentials.js';
+import { deployExport } from './export-deploy.js';
 
 type Platform = 'ios' | 'android';
 
@@ -22,6 +23,7 @@ type RndConfig = {
     ios?: string;
     android?: string;
   };
+  export?: string;
 };
 
 function env(name: string, fallback?: string): string {
@@ -176,7 +178,8 @@ function addDeployOptions(cmd: Command) {
     .option('--bundle-id <id>', 'iOS bundle id for Ad Hoc manifest')
     .option('--api-url <url>', 'Console API base')
     .option('--token <token>', 'Deploy API token (or use `rnd token add`)')
-    .option('--profile <name>', 'Credentials profile name', 'default');
+    .option('--profile <name>', 'Credentials profile name', 'default')
+    .option('--export [dir]', 'Upload an Expo export directory and open it with the sandbox QR');
 }
 
 function resolveArtifact(
@@ -214,21 +217,50 @@ function resolveArtifact(
   );
 }
 
-async function runDeploy(opts: Record<string, string | undefined>) {
+async function runDeploy(opts: Record<string, string | boolean | undefined>) {
   const cfg = loadConfig();
-  const file = resolveArtifact(cfg, opts.platform, opts.file);
+  if (opts.export) {
+    const dir = typeof opts.export === 'string' ? opts.export : (cfg.export ?? './dist');
+    const token = resolveToken({
+      token: typeof opts.token === 'string' ? opts.token : undefined,
+      profile: typeof opts.profile === 'string' ? opts.profile : undefined,
+    });
+    await deployExport({
+      dir,
+      appId: (typeof opts.app === 'string' ? opts.app : undefined) ?? cfg.appId ?? env('RND_APP_ID', 'my-app'),
+      version: (typeof opts.version === 'string' ? opts.version : undefined) ?? defaultVersion(),
+      memo: typeof opts.memo === 'string' ? opts.memo : '',
+      sdk: typeof opts.sdk === 'string' ? opts.sdk : undefined,
+      apiUrl:
+        (typeof opts.apiUrl === 'string' ? opts.apiUrl : undefined) ?? cfg.apiUrl ?? env('RND_API_URL'),
+      token,
+    });
+    return;
+  }
 
-  const token = resolveToken({ token: opts.token, profile: opts.profile });
+  const file = resolveArtifact(
+    cfg,
+    typeof opts.platform === 'string' ? opts.platform : undefined,
+    typeof opts.file === 'string' ? opts.file : undefined,
+  );
+
+  const token = resolveToken({
+    token: typeof opts.token === 'string' ? opts.token : undefined,
+    profile: typeof opts.profile === 'string' ? opts.profile : undefined,
+  });
 
   await deployFile({
     file,
-    appId: opts.app ?? cfg.appId ?? env('RND_APP_ID', 'my-app'),
-    platform: opts.platform,
-    version: opts.version,
-    memo: opts.memo,
-    sdk: opts.sdk,
-    bundleId: opts.bundleId ?? cfg.bundleId ?? process.env.RND_BUNDLE_ID,
-    apiUrl: opts.apiUrl ?? cfg.apiUrl ?? env('RND_API_URL'),
+    appId: (typeof opts.app === 'string' ? opts.app : undefined) ?? cfg.appId ?? env('RND_APP_ID', 'my-app'),
+    platform: typeof opts.platform === 'string' ? opts.platform : undefined,
+    version: typeof opts.version === 'string' ? opts.version : undefined,
+    memo: typeof opts.memo === 'string' ? opts.memo : undefined,
+    sdk: typeof opts.sdk === 'string' ? opts.sdk : undefined,
+    bundleId:
+      (typeof opts.bundleId === 'string' ? opts.bundleId : undefined) ??
+      cfg.bundleId ??
+      process.env.RND_BUNDLE_ID,
+    apiUrl: (typeof opts.apiUrl === 'string' ? opts.apiUrl : undefined) ?? cfg.apiUrl ?? env('RND_API_URL'),
     token,
   });
 }

@@ -1,4 +1,29 @@
-export type Platform = 'ios' | 'android';
+export type Platform = 'ios' | 'android' | 'sandbox';
+
+/** One file inside an Expo Updates manifest. */
+export interface UpdateAsset {
+  hash: string;
+  key: string;
+  contentType: string;
+  fileExtension?: string;
+  url: string;
+}
+
+export interface UpdatePlatformBundle {
+  launchAsset: UpdateAsset;
+  assets: UpdateAsset[];
+}
+
+/** Expo export uploaded for QR testing inside the sandbox app. */
+export interface ExportManifest {
+  id: string;
+  createdAt: string;
+  platforms: {
+    ios?: UpdatePlatformBundle;
+    android?: UpdatePlatformBundle;
+  };
+  expoConfig?: Record<string, unknown> | null;
+}
 
 /** Console statuses — analogous to a release board (ready → test → store → released). */
 export type BuildStatus =
@@ -29,6 +54,8 @@ export interface BuildRecord {
   installUrl: string;
   fileName: string;
   fileSize?: number;
+  /** Present when this build is an Expo export for the sandbox. */
+  exportManifest?: ExportManifest | null;
 }
 
 export interface AppIndex {

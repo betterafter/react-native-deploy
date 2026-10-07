@@ -24,6 +24,7 @@ function formatDate(iso: string) {
 function platformLabel(platform: string) {
   if (platform === 'ios') return 'iOS';
   if (platform === 'android') return 'Android';
+  if (platform === 'sandbox') return 'QR 테스트';
   return platform;
 }
 
@@ -38,14 +39,26 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [testTarget, setTestTarget] = useState<BuildRecord | null>(null);
   const [token, setToken] = useState('');
-  const [sandbox, setSandbox] = useState<{ name: string; url: string } | null>(null);
+  const [sandbox, setSandbox] = useState<{
+    name: string;
+    android: { url: string } | null;
+    ios: { url: string } | null;
+  } | null>(null);
 
   useEffect(() => {
     void fetch('/api/sandbox')
       .then((res) => res.json())
-      .then((data: { sandbox?: { name: string; url: string } | null }) => {
-        setSandbox(data.sandbox ?? null);
-      })
+      .then(
+        (data: {
+          sandbox?: {
+            name: string;
+            android: { url: string } | null;
+            ios: { url: string } | null;
+          } | null;
+        }) => {
+          setSandbox(data.sandbox ?? null);
+        },
+      )
       .catch(() => setSandbox(null));
   }, []);
 
@@ -165,17 +178,32 @@ export default function HomePage() {
     <>
     {sandbox ? (
       <div className="sandbox-banner">
-        <p>{sandbox.name}을 설치해서 간편하게 테스트해보세요!</p>
-        <a className="btn btn-primary" href={sandbox.url}>
-          다운로드
-        </a>
+        <div className="sandbox-banner-row">
+          <p>{sandbox.name}을 설치해서 간편하게 테스트해보세요!</p>
+          {sandbox.android ? (
+            <a className="btn btn-primary" href={sandbox.android.url}>
+              Android 다운로드
+            </a>
+          ) : null}
+          {sandbox.ios ? (
+            <a className="btn btn-primary" href={sandbox.ios.url}>
+              iOS 다운로드
+            </a>
+          ) : null}
+        </div>
+        <p className="sandbox-banner-guide">
+          샌드박스가 설치되어 있으면 그 안에서 테스트합니다. 없으면 아래 각 빌드의
+          테스트로 설치 파일을 받아 확인합니다. iOS 샌드박스를 만들어 올리려면 Apple
+          Developer 계정이 필요합니다. 계정이 없으면 Android 샌드박스를 쓰거나, 각
+          빌드를 직접 설치해 테스트합니다.
+        </p>
       </div>
     ) : null}
     <div className="page">
       <header className="header">
         <div>
           <h1>{appId || '빌드'}</h1>
-          <p>이 앱에 올린 빌드입니다. 테스트로 설치 QR을 엽니다.</p>
+          <p>설치 파일은 QR로 설치하고, Expo export는 샌드박스 QR로 엽니다.</p>
         </div>
         {appOptions.length > 1 ? (
           <label className="app-switch">
@@ -232,7 +260,7 @@ export default function HomePage() {
           <div className="empty">
             {appId ? `${appId}에는 아직 빌드가 없습니다.` : '아직 올린 빌드가 없습니다.'}
             <div className="code" style={{ marginTop: 12, textAlign: 'left' }}>
-              npx rnd deploy -m &quot;메모&quot;
+              {`npx expo export\nnpx rnd deploy --export ./dist -m "메모"\n\nnpx rnd deploy -f ./app.apk -m "메모"`}
             </div>
           </div>
         ) : filtered.length === 0 ? (
@@ -299,16 +327,18 @@ export default function HomePage() {
       {testTarget && (
         <div className="modal-backdrop" onClick={() => setTestTarget(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>테스트 설치</h3>
+            <h3>{testTarget.platform === 'sandbox' ? '샌드박스 테스트' : '테스트 설치'}</h3>
             <p>
               {testTarget.version} · {platformLabel(testTarget.platform)}
               <br />
-              휴대폰으로 QR을 스캔하면 이 빌드를 설치합니다.
+              {testTarget.platform === 'sandbox'
+                ? 'QR을 스캔하면 샌드박스 앱이 이 화면을 저장합니다. 앱을 완전히 종료한 뒤 다시 열면 로드됩니다.'
+                : '휴대폰으로 QR을 스캔하면 이 빌드를 설치합니다.'}
             </p>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={`/api/qr?appId=${encodeURIComponent(testTarget.appId)}&id=${encodeURIComponent(testTarget.id)}`}
-              alt="설치 QR"
+              alt={testTarget.platform === 'sandbox' ? '샌드박스 QR' : '설치 QR'}
             />
             <p style={{ marginTop: 0 }}>{testTarget.installUrl}</p>
             <button

@@ -95,14 +95,19 @@ npx rnd deploy --profile staging
 
 ### 4. 배포
 
+설치 파일 QR은 그 APK·IPA를 폰에 설치합니다. Expo export QR은 미리 설치해 둔 샌드박스 안에서 화면을 엽니다. export는 샌드박스와 같은 Expo SDK 57로 만듭니다.
+
 ```bash
+# 설치 파일
 npm run build
 npx rnd deploy -m "ad size center"
-# 또는
-npm run deploy -- -m "ad size center"
+
+# 샌드박스 QR 테스트
+npx expo export
+npx rnd deploy --export ./dist -m "홈 화면"
 ```
 
-끝나면 콘솔 URL이 출력됩니다. 웹에서 **테스트** → QR로 Ad Hoc / APK 설치.
+`--export`만 쓰면 `rnd.config.json`의 `export`(없으면 `./dist`)를 올립니다. 끝나면 콘솔 URL이 출력됩니다. 웹에서 **테스트**를 누르면 QR이 열립니다. 샌드박스 QR은 스캔한 뒤 앱을 완전히 종료하고 다시 열면 그 화면이 로드됩니다.
 
 ---
 
@@ -133,7 +138,8 @@ npm run dev          # 로컬 확인
 | `R2_PUBLIC_BASE_URL` | 객체 공개/CDN 베이스 URL |
 | `DEFAULT_APP_ID` | (선택) UI 기본 앱 id |
 | `DEFAULT_IOS_BUNDLE_ID` | (선택) CLI에 bundle id 없을 때 |
-| `SANDBOX_APP_URL` | (선택) 샌드박스 설치 파일의 공개 URL. 띠 이름은 파일 이름 |
+| `SANDBOX_APP_ANDROID_URL` | (선택) Android 샌드박스 APK 공개 URL. 띠 이름은 파일 이름 |
+| `SANDBOX_APP_IOS_URL` | (선택) iOS 샌드박스 IPA 공개 URL. Apple Developer 계정으로 서명한 파일 |
 
 메타·파일은 전부 R2. **DB 없음.**
 
@@ -157,6 +163,7 @@ npm run dev          # 로컬 확인
 apps/{appId}/index.json
 apps/{appId}/builds/{buildId}/meta.json
 apps/{appId}/builds/{buildId}/{file}
+apps/{appId}/builds/{buildId}/export/          # Expo export for sandbox QR
 apps/{appId}/builds/{buildId}/manifest.plist   # iOS Ad Hoc
 ```
 
@@ -164,23 +171,33 @@ apps/{appId}/builds/{buildId}/manifest.plist   # iOS Ad Hoc
 
 ## 샌드박스 앱
 
-[react-native-deploy-app](https://github.com/betterafter/react-native-deploy-app)은 폰에 한 번 설치하는 샌드박스입니다. Expo Go가 카메라·위치·알림처럼 Expo SDK 네이티브를 미리 넣어 두는 것과 같이, [Expo Go(SDK 57)에 들어 있는 네이티브 모듈](https://github.com/expo/expo/blob/sdk-57/apps/expo-go/package.json)을 설치본에 담습니다. 이 앱이 깔린 폰에서는 배포한 화면을 샌드박스 안에서 보고, 없으면 각 프로젝트의 APK·IPA를 받아 테스트합니다.
+[react-native-deploy-app](https://github.com/betterafter/react-native-deploy-app)은 폰에 한 번 설치하는 샌드박스입니다. Expo Go가 카메라·위치·알림처럼 Expo SDK 네이티브를 미리 넣어 두는 것과 같이, [Expo Go(SDK 57)에 들어 있는 네이티브 모듈](https://github.com/expo/expo/blob/sdk-57/apps/expo-go/package.json)을 설치본에 담습니다. 런타임 버전은 `57.0.0`입니다.
 
-샌드박스에 없는 자체 네이티브가 프로젝트에 추가되면, 그 기능은 지금 설치된 샌드박스 안에서 동작하지 않습니다. 그 배포는 프로젝트 설치 파일로 확인하거나, 그 네이티브가 포함된 샌드박스를 다시 만들어 설치합니다.
+QR 테스트는 이 샌드박스가 설치된 폰에서만 동작합니다. 콘솔 QR은 웹 페이지를 열고, 그 페이지가 샌드박스에 이번 export 주소를 저장합니다. 저장 뒤 앱을 완전히 종료하고 다시 열면 Expo Updates가 그 화면을 받아 실행합니다. 샌드박스가 없으면 각 프로젝트의 APK·IPA QR로 설치해 테스트합니다.
+
+샌드박스에 없는 자체 네이티브가 프로젝트에 추가되면, 그 기능은 지금 설치된 샌드박스 안에서 동작하지 않습니다. 그 배포는 프로젝트 설치 파일로 확인하거나, 그 네이티브가 포함된 샌드박스를 다시 만들어 설치합니다. QR 테스트를 쓰려면 아래 설정이 반영된 샌드박스를 다시 빌드해 설치해야 합니다.
 
 ### 설치 파일을 Cloudflare에 연결
 
-이미 콘솔에 쓰는 R2 버킷에 설치 파일을 올리고, 공개 URL을 콘솔에 연결합니다. 띠에 나오는 이름은 환경변수로 따로 적지 않습니다. URL 경로의 파일 이름에서 확장자(`.apk`, `.ipa`, `.aab`)를 뺀 값입니다.
+이미 콘솔에 쓰는 R2 버킷에 설치 파일을 올리고, 공개 URL을 콘솔에 연결합니다. 띠에 나오는 이름은 환경변수로 따로 적지 않습니다. Android URL 파일 이름에서 확장자를 뺀 값이고, Android 주소가 없으면 iOS 파일 이름을 씁니다.
 
 1. [react-native-deploy-app](https://github.com/betterafter/react-native-deploy-app)에서 설치 파일을 만듭니다. 방법은 그 저장소 README에 있습니다.
-2. 테스터에게 보일 이름으로 R2에 올립니다. 예: `Freecap.apk`
-3. 콘솔 환경변수에 그 공개 URL을 넣습니다. `R2_PUBLIC_BASE_URL`과 같은 공개 주소입니다.
+2. 테스터에게 보일 이름으로 R2에 올립니다. 예: `MySandBox.apk`, `MySandBox.ipa`
+3. 콘솔 환경변수에 플랫폼별 공개 URL을 넣습니다. `R2_PUBLIC_BASE_URL`과 같은 공개 주소입니다.
 
 ```bash
-SANDBOX_APP_URL=https://pub-xxxxx.r2.dev/Freecap.apk
+SANDBOX_APP_ANDROID_URL=https://pub-xxxxx.r2.dev/MySandBox.apk
+SANDBOX_APP_IOS_URL=https://pub-xxxxx.r2.dev/MySandBox.ipa
 ```
 
-콘솔을 다시 배포하면 상단에 **Freecap을 설치해서 간편하게 테스트해보세요!** 와 **다운로드**가 나옵니다. 다운로드는 그 파일로 이동해서 샌드박스 앱이 설치됩니다. `SANDBOX_APP_URL`이 없으면 띠는 나오지 않습니다.
+콘솔을 다시 배포하면 상단 띠에 **MySandBox을 설치해서 간편하게 테스트해보세요!** 와 **Android 다운로드**, **iOS 다운로드**가 나옵니다. 주소가 있는 플랫폼 버튼만 보입니다.
+
+띠 안내 문구는 두 가지 테스트 방법을 알려 줍니다.
+
+- 샌드박스가 폰에 있으면 그 안에서 테스트합니다.
+- 없으면 아래 빌드 목록의 **테스트**로 그 앱의 설치 파일을 받아 확인합니다.
+
+iOS 샌드박스 설치본은 Apple Developer 계정으로 서명해야 다른 아이폰에 설치됩니다. 계정이 없으면 `SANDBOX_APP_IOS_URL`을 비우고, Android 샌드박스나 각 빌드의 설치 파일로 테스트합니다. 두 주소가 모두 없으면 띠는 나오지 않습니다. 예전 `SANDBOX_APP_URL` 하나만 있으면 확장자로 Android(`.apk`, `.aab`)와 iOS(`.ipa`)를 구분합니다.
 
 ---
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import type { BuildRecord } from '@rnd/shared';
+import type { BuildRecord, ExportManifest, Platform } from '@rnd/shared';
 import { iosManifestXml, itmsServicesUrl } from '@/lib/ios-manifest';
 import {
   assertDeployToken,
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
   const body = (await req.json()) as {
     id: string;
     appId: string;
-    platform: 'ios' | 'android';
+    platform: Platform;
     version: string;
     memo?: string;
     sdkVersion?: string;
@@ -45,7 +45,12 @@ export async function POST(req: NextRequest) {
     fileName: string;
     fileSize?: number;
     bundleId?: string;
+    exportManifest?: ExportManifest;
   };
+
+  if (body.platform !== 'ios' && body.platform !== 'android' && body.platform !== 'sandbox') {
+    return NextResponse.json({ error: 'platform must be ios, android, or sandbox' }, { status: 400 });
+  }
 
   const base = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(
     /\/$/,
@@ -54,8 +59,19 @@ export async function POST(req: NextRequest) {
 
   let manifestUrl: string | null = null;
   let installUrl = body.artifactUrl;
+  let artifactUrl = body.artifactUrl;
 
-  if (body.platform === 'ios') {
+  if (body.platform === 'sandbox') {
+    const platforms = body.exportManifest?.platforms;
+    if (!body.exportManifest?.id || (!platforms?.ios && !platforms?.android)) {
+      return NextResponse.json(
+        { error: 'sandbox deploy requires an Expo export with an ios or android bundle' },
+        { status: 400 },
+      );
+    }
+    installUrl = `${base}/test/${encodeURIComponent(body.appId)}/${encodeURIComponent(body.id)}`;
+    artifactUrl = installUrl;
+  } else if (body.platform === 'ios') {
     const bundleId = body.bundleId || process.env.DEFAULT_IOS_BUNDLE_ID;
     if (!bundleId) {
       return NextResponse.json(
@@ -86,11 +102,12 @@ export async function POST(req: NextRequest) {
     createdAt: new Date().toISOString(),
     releasedAt: null,
     artifactKey: body.artifactKey,
-    artifactUrl: body.artifactUrl,
+    artifactUrl,
     manifestUrl,
     installUrl,
     fileName: body.fileName,
     fileSize: body.fileSize,
+    exportManifest: body.platform === 'sandbox' ? body.exportManifest : null,
   };
 
   await saveBuild(build);
