@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { readdir, readFile, stat } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
+import { normalizeBaseUrl } from './url.js';
 
 type UpdateAsset = {
   hash: string;
@@ -66,7 +67,9 @@ async function listFiles(root: string): Promise<string[]> {
 }
 
 async function api(baseUrl: string, token: string, path: string, init?: RequestInit) {
-  return fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+  const root = normalizeBaseUrl(baseUrl);
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return fetch(`${root}${p}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,

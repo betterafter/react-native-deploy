@@ -11,11 +11,11 @@ const result = scaffoldRndConfig({ cwd });
 if (result.created) {
   process.stdout.write(
     `[rnd] Created ${result.path}\n` +
-      `[rnd] Next:\n` +
-      `  1. Edit apiUrl (and artifact paths if needed) in rnd.config.json\n` +
-      `  2. npx rnd token add\n` +
-      `  3. npm run build   # or your IPA/APK / expo flow\n` +
-      `  4. npx rnd deploy -m "메모"\n`,
+      `[rnd] Next (4 commands):\n` +
+      `  npx rnd token add\n` +
+      `  npx rnd build\n` +
+      `  npx rnd deploy -m "메모"\n` +
+      `[rnd] Default deploy = install QR (APK) + sandbox QR (Expo export)\n`,
   );
 } else if (result.skipped && result.reason && !result.reason.includes('already exists')) {
   // Quiet when already configured; only note real skips (e.g. no package.json).

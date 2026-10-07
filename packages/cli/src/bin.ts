@@ -5,6 +5,13 @@ import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
+import { runRndBuild } from './build.js';
+import {
+  isPlaceholderApiUrl,
+  loadConfigFile,
+  saveConfigFile,
+  type RndConfig,
+} from './config-io.js';
 import {
   addToken,
   credentialsPath,
@@ -14,25 +21,9 @@ import {
 } from './credentials.js';
 import { deployExport } from './export-deploy.js';
 import { resolveConsumerRoot, scaffoldRndConfig } from './init-config.js';
+import { normalizeBaseUrl } from './url.js';
 
 type Platform = 'ios' | 'android';
-
-type RndConfig = {
-  appId?: string;
-  bundleId?: string;
-  apiUrl?: string;
-  artifact?: {
-    ios?: string;
-    android?: string;
-  };
-  /** Output directory for `expo export` / sandbox upload. Default: ./dist */
-  export?: string;
-  /**
-   * Run `npx expo export` before sandbox upload.
-   * Default: true when the project depends on `expo`.
-   */
-  expoExport?: boolean;
-};
 
 function env(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback;
@@ -43,13 +34,7 @@ function env(name: string, fallback?: string): string {
 }
 
 function loadConfig(): RndConfig {
-  const path = resolve(process.cwd(), 'rnd.config.json');
-  if (!existsSync(path)) return {};
-  try {
-    return JSON.parse(readFileSync(path, 'utf8')) as RndConfig;
-  } catch {
-    throw new Error(`Invalid rnd.config.json at ${path}`);
-  }
+  return loadConfigFile(process.cwd());
 }
 
 function detectPlatform(file: string, explicit?: string): Platform {
@@ -70,7 +55,9 @@ function defaultVersion(): string {
 }
 
 async function api(baseUrl: string, token: string, path: string, init?: RequestInit) {
-  return fetch(`${baseUrl.replace(/\/$/, '')}${path}`, {
+  const root = normalizeBaseUrl(baseUrl);
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return fetch(`${root}${p}`, {
     ...init,
     headers: {
       Authorization: `Bearer ${token}`,
@@ -164,7 +151,7 @@ async function deployFile(opts: {
     throw new Error(`register failed: ${registerRes.status} ${await registerRes.text()}`);
   }
   const build = (await registerRes.json()) as { id: string; consoleUrl: string };
-  process.stdout.write(`\nDone.\n`);
+  process.stdout.write(`\nDone (install file).\n`);
   process.stdout.write(`Build: ${build.id}\n`);
   process.stdout.write(`Console: ${build.consoleUrl}\n`);
 }
@@ -243,9 +230,9 @@ function resolveArtifact(
   if (iosOk && ios) return ios;
   if (!required) return null;
   throw new Error(
-    'No artifact file found. Build the app first, then either:\n' +
-      '  npx rnd deploy -f ./path/to/app.apk\n' +
-      'or set artifact.ios / artifact.android in rnd.config.json to a file that exists.',
+    'No artifact file found. Run:\n' +
+      '  npx rnd build\n' +
+      'then `npx rnd deploy`, or pass -f ./path/to/app.apk',
   );
 }
 
@@ -332,10 +319,11 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
     (typeof opts.version === 'string' ? opts.version : undefined) ?? defaultVersion();
   const memo = typeof opts.memo === 'string' ? opts.memo : '';
   const sdk = typeof opts.sdk === 'string' ? opts.sdk : undefined;
-  const apiUrl =
+  const apiUrlRaw =
     (typeof opts.apiUrl === 'string' ? opts.apiUrl : undefined) ??
     cfg.apiUrl ??
     env('RND_API_URL');
+  const apiUrl = normalizeBaseUrl(apiUrlRaw);
   const bundleId =
     (typeof opts.bundleId === 'string' ? opts.bundleId : undefined) ??
     cfg.bundleId ??
@@ -343,6 +331,7 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
 
   let uploaded = 0;
 
+  // Default: install file QR + sandbox QR (Expo export)
   if (!exportOnly) {
     const file = resolveArtifact(
       cfg,
@@ -364,7 +353,10 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
       });
       uploaded += 1;
     } else {
-      process.stdout.write('No install artifact found — skipping IPA/APK upload.\n');
+      process.stdout.write(
+        'No install artifact — skipping file install QR.\n' +
+          'Run `npx rnd build` first for APK install QR (default path).\n',
+      );
     }
   }
 
@@ -393,7 +385,7 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
       uploaded += 1;
     } else if (!exportOnly) {
       process.stdout.write(
-        'No sandbox export — skipping QR test upload.\n' +
+        'No sandbox export — skipping sandbox QR.\n' +
           '(Expo project: deploy runs `expo export` by default. Or set expoExport: true in rnd.config.json)\n',
       );
     }
@@ -402,17 +394,38 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
   if (uploaded === 0) {
     throw new Error(
       'Nothing to deploy. Need at least one of:\n' +
-        '  • IPA/APK (artifact in rnd.config.json or -f)\n' +
-        '  • Expo export (auto via `expo export`, or an existing --export dir)',
+        '  • IPA/APK — run `npx rnd build`, then deploy again\n' +
+        '  • Expo sandbox — Expo app with `expo export` (default on deploy)',
     );
   }
 }
+
+program
+  .command('build')
+  .description(
+    'Build install artifact (Android release APK by default; Expo prebuild if needed)',
+  )
+  .option('-p, --platform <platform>', 'android | ios | all', 'android')
+  .option('--cwd <path>', 'Project root (default: current directory)')
+  .action((opts: { platform?: string; cwd?: string }) => {
+    const platform = (opts.platform ?? 'android') as 'android' | 'ios' | 'all';
+    if (platform !== 'android' && platform !== 'ios' && platform !== 'all') {
+      throw new Error('--platform must be android | ios | all');
+    }
+    const cwd = resolve(opts.cwd ?? process.cwd());
+    const result = runRndBuild({ cwd, platform });
+    if (result.androidApk) {
+      process.stdout.write(
+        `\nReady for install QR. Next:\n  npx rnd deploy -m "메모"\n`,
+      );
+    }
+  });
 
 addDeployOptions(
   program
     .command('deploy')
     .description(
-      'Upload IPA/APK and sandbox QR export (runs `expo export` by default in Expo apps)',
+      'Default: install file QR (APK/IPA) + sandbox QR (`expo export` in Expo apps)',
     ),
 ).action(async (opts) => {
   await runDeploy(opts);
@@ -440,9 +453,9 @@ program
     if (result.created) {
       process.stdout.write(
         `Created ${result.path}\n` +
-          `Edit apiUrl (replace YOUR_CONSOLE_URL), then:\n` +
+          `Next:\n` +
           `  npx rnd token add\n` +
-          `  npm run build\n` +
+          `  npx rnd build\n` +
           `  npx rnd deploy -m "메모"\n`,
       );
       return;
@@ -458,19 +471,48 @@ const tokenCmd = program
 
 tokenCmd
   .command('add')
-  .description('Save an API token locally (like `ait token add`)')
+  .description('Save API token (+ console apiUrl into rnd.config.json if missing)')
   .option('--api-key <token>', 'API token value')
+  .option('--api-url <url>', 'Console base URL to write into rnd.config.json')
   .argument('[profile]', 'Profile name', 'default')
-  .action(async (profile: string, opts: { apiKey?: string }) => {
-    let token = opts.apiKey?.trim();
-    if (!token) {
-      const rl = createInterface({ input, output });
-      token = (await rl.question('API token: ')).trim();
+  .action(async (profile: string, opts: { apiKey?: string; apiUrl?: string }) => {
+    const cwd = process.cwd();
+    let cfg = loadConfigFile(cwd);
+    if (!existsSync(resolve(cwd, 'rnd.config.json'))) {
+      scaffoldRndConfig({ cwd });
+      cfg = loadConfigFile(cwd);
+    }
+
+    const rl = createInterface({ input, output });
+    try {
+      let token = opts.apiKey?.trim();
+      if (!token) {
+        token = (await rl.question('API token: ')).trim();
+      }
+      if (!token) throw new Error('Empty token');
+
+      let apiUrl = opts.apiUrl?.trim() || cfg.apiUrl;
+      if (isPlaceholderApiUrl(apiUrl)) {
+        apiUrl = (
+          await rl.question(
+            'Console URL (e.g. my-app.vercel.app): ',
+          )
+        ).trim();
+      }
+      if (!apiUrl) throw new Error('Empty console URL');
+
+      const normalized = normalizeBaseUrl(apiUrl);
+      addToken(profile || 'default', token);
+      saveConfigFile({ ...cfg, apiUrl: normalized }, cwd);
+
+      process.stdout.write(
+        `Saved profile "${profile || 'default'}" → ${credentialsPath()}\n` +
+          `Saved apiUrl → rnd.config.json (${normalized})\n` +
+          `Next:\n  npx rnd build\n  npx rnd deploy -m "메모"\n`,
+      );
+    } finally {
       rl.close();
     }
-    if (!token) throw new Error('Empty token');
-    addToken(profile || 'default', token);
-    process.stdout.write(`Saved profile "${profile || 'default'}" → ${credentialsPath()}\n`);
   });
 
 tokenCmd
@@ -507,9 +549,10 @@ program
   .option('--api-url <url>', 'Console base')
   .action((opts) => {
     const cfg = loadConfig();
-    const url =
-      opts.apiUrl ?? cfg.apiUrl ?? process.env.RND_API_URL ?? 'http://localhost:3000';
-    process.stdout.write(`${url.replace(/\/$/, '')}/\n`);
+    const url = normalizeBaseUrl(
+      opts.apiUrl ?? cfg.apiUrl ?? process.env.RND_API_URL ?? 'http://localhost:3000',
+    );
+    process.stdout.write(`${url}/\n`);
   });
 
 program.parseAsync(process.argv).catch((err) => {

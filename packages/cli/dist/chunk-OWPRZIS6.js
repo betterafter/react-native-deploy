@@ -60,16 +60,25 @@ function scaffoldRndConfig(opts) {
   };
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}
 `, "utf8");
-  if (pkg && !pkg.scripts?.deploy) {
-    const next = {
-      ...pkg,
-      scripts: {
-        ...pkg.scripts ?? {},
-        deploy: "rnd deploy"
-      }
-    };
-    writeFileSync(pkgPath, `${JSON.stringify(next, null, 2)}
-`, "utf8");
+  if (pkg) {
+    const scripts = { ...pkg.scripts ?? {} };
+    let changed = false;
+    if (!scripts.build) {
+      scripts.build = "rnd build";
+      changed = true;
+    }
+    if (!scripts.deploy) {
+      scripts.deploy = "rnd deploy";
+      changed = true;
+    }
+    if (changed) {
+      writeFileSync(
+        pkgPath,
+        `${JSON.stringify({ ...pkg, scripts }, null, 2)}
+`,
+        "utf8"
+      );
+    }
   }
   return { path: configPath, created: true, skipped: false };
 }
