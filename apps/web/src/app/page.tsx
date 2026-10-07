@@ -311,7 +311,7 @@ export default function HomePage() {
         ) : filtered.length === 0 ? (
           <div className="empty">조건에 맞는 빌드가 없습니다.</div>
         ) : (
-          <table>
+          <table className="builds">
             <thead>
               <tr>
                 <th>올린 시각</th>
@@ -325,18 +325,18 @@ export default function HomePage() {
             <tbody>
               {filtered.map((b) => (
                 <tr key={b.id}>
-                  <td>{formatDate(b.createdAt)}</td>
-                  <td>
+                  <td data-label="올린 시각">{formatDate(b.createdAt)}</td>
+                  <td data-label="버전">
                     <span className="version-link">{b.version}</span>
                   </td>
-                  <td>{platformLabel(b.platform)}</td>
-                  <td>
+                  <td data-label="플랫폼">{platformLabel(b.platform)}</td>
+                  <td data-label="상태">
                     <span className="status">
                       <span className={`dot ${b.status}`} />
                       {STATUS_LABEL[b.status]}
                     </span>
                   </td>
-                  <td>
+                  <td data-label="메모">
                     <button
                       type="button"
                       className="btn btn-ghost"
@@ -351,7 +351,7 @@ export default function HomePage() {
                       <span className="memo">{b.memo || '—'}</span>
                     </button>
                   </td>
-                  <td>
+                  <td data-label="">
                     <div className="row-actions">
                       <button
                         type="button"
