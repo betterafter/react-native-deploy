@@ -9,16 +9,17 @@
   "files": [
     "packages/cli/dist"
   ],
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
   "scripts": {
     "dev": "npm run dev -w @rnd/web",
     "build": "npm run build -w @rnd/web",
     "build:cli": "npm run build -w @rnd/cli",
-    "cli": "npm run start -w @rnd/cli"
+    "cli": "npm run start -w @rnd/cli",
+    "postinstall": "node ./packages/cli/dist/postinstall.js"
   },
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "engines": {
     "node": ">=20"
   },

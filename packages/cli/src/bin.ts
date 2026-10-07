@@ -13,6 +13,7 @@ import {
   resolveToken,
 } from './credentials.js';
 import { deployExport } from './export-deploy.js';
+import { resolveConsumerRoot, scaffoldRndConfig } from './init-config.js';
 
 type Platform = 'ios' | 'android';
 
@@ -422,6 +423,34 @@ addDeployOptions(
 ).action(async (opts) => {
   await runDeploy(opts);
 });
+
+program
+  .command('init')
+  .description('Create rnd.config.json from package.json / app.json (safe: no overwrite)')
+  .option('--force', 'Overwrite existing rnd.config.json')
+  .option('--api-url <url>', 'Console base URL to write into config')
+  .option('--cwd <path>', 'Project root (default: current directory)')
+  .action((opts: { force?: boolean; apiUrl?: string; cwd?: string }) => {
+    const cwd = resolve(opts.cwd ?? resolveConsumerRoot(process.cwd()));
+    const result = scaffoldRndConfig({
+      cwd,
+      force: Boolean(opts.force),
+      apiUrl: opts.apiUrl,
+    });
+    if (result.created) {
+      process.stdout.write(
+        `Created ${result.path}\n` +
+          `Edit apiUrl (replace YOUR_CONSOLE_URL), then:\n` +
+          `  npx rnd token add\n` +
+          `  npm run build\n` +
+          `  npx rnd deploy -m "메모"\n`,
+      );
+      return;
+    }
+    process.stdout.write(
+      `Skipped: ${result.reason ?? 'unknown'}${result.path ? ` (${result.path})` : ''}\n`,
+    );
+  });
 
 const tokenCmd = program
   .command('token')

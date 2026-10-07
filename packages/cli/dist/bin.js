@@ -1,4 +1,8 @@
 #!/usr/bin/env node
+import {
+  resolveConsumerRoot,
+  scaffoldRndConfig
+} from "./chunk-KWNOYSDW.js";
 
 // src/bin.ts
 import { Command } from "commander";
@@ -550,6 +554,29 @@ addDeployOptions(
   program.command("upload").description("Alias of `rnd deploy`")
 ).action(async (opts) => {
   await runDeploy(opts);
+});
+program.command("init").description("Create rnd.config.json from package.json / app.json (safe: no overwrite)").option("--force", "Overwrite existing rnd.config.json").option("--api-url <url>", "Console base URL to write into config").option("--cwd <path>", "Project root (default: current directory)").action((opts) => {
+  const cwd = resolve2(opts.cwd ?? resolveConsumerRoot(process.cwd()));
+  const result = scaffoldRndConfig({
+    cwd,
+    force: Boolean(opts.force),
+    apiUrl: opts.apiUrl
+  });
+  if (result.created) {
+    process.stdout.write(
+      `Created ${result.path}
+Edit apiUrl (replace YOUR_CONSOLE_URL), then:
+  npx rnd token add
+  npm run build
+  npx rnd deploy -m "\uBA54\uBAA8"
+`
+    );
+    return;
+  }
+  process.stdout.write(
+    `Skipped: ${result.reason ?? "unknown"}${result.path ? ` (${result.path})` : ""}
+`
+  );
 });
 var tokenCmd = program.command("token").description("Manage locally saved API tokens (~/.rnd/credentials)");
 tokenCmd.command("add").description("Save an API token locally (like `ait token add`)").option("--api-key <token>", "API token value").argument("[profile]", "Profile name", "default").action(async (profile, opts) => {

@@ -1,7 +1,7 @@
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
-  entry: ['src/bin.ts'],
+  entry: ['src/bin.ts', 'src/postinstall.ts'],
   format: ['esm'],
   outDir: 'dist',
   clean: true,

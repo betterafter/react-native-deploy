@@ -18,56 +18,52 @@ Expo EAS나 상용 배포 서비스는 편하지만, 클라우드 빌드·시트
 
 ---
 
-## 앱 개발자: 매일 쓰는 흐름
+## 앱 개발자
 
-앱인토스의 `npm run build` → `npx ait deploy` 와 같습니다.
+앱 루트에 `package.json`이 있는 Node / React Native 프로젝트에서 사용합니다.  
+(순수 Android/iOS 전용 폴더에는 `package.json`이 없어 `npm i`가 실패합니다.)
 
-```bash
-npm run build
-npx rnd deploy -m "메모"
-```
+### 최소 명령어 (이걸로 배포 성공)
 
-### 1. CLI 설치 (앱 레포)
-
-앱 루트에 `package.json`이 있는 Node / React Native 프로젝트에서 실행하세요.  
-(순수 Android/iOS 네이티브 전용 폴더에는 `package.json`이 없어 `npm i`가 실패합니다.)
+앱인토스의 `build` → `deploy`와 같은 뼈대입니다. **최초 1회 세팅 + 이후 반복**만 기억하면 됩니다.
 
 ```bash
-# 권장 — 저장소 루트가 `rnd` CLI로 설치됩니다
 npm i -D github:betterafter/react-native-deploy
-
-# pnpm / yarn
-pnpm add -D github:betterafter/react-native-deploy
-yarn add -D github:betterafter/react-native-deploy
-
-# 이 저장소를 로컬에서 같이 고칠 때
-npm i -D file:../react-native-deploy
+npx rnd token add
+npm run build                 
+npx rnd deploy -m "홈 화면" 
 ```
 
-끝나면 앱 루트에서 확인합니다.
+Expo만 샌드박스 QR로 빠르게 볼 때는 설치 파일 없이:
 
 ```bash
-npx rnd --help
+npx rnd deploy --export-only -m "JS만 테스트"
 ```
 
-이 저장소에서 CLI 소스를 고친 뒤에는 `npm run build:cli`로 `packages/cli/dist`를 다시 만들고 커밋하세요. (다른 앱은 빌드된 dist를 그대로 설치합니다.)
+전제: 팀이 콘솔을 이미 호스팅해 두었고, 개발자는 **콘솔 URL**과 **배포 토큰**만 알고 있으면 됩니다.
 
-```json
-{
-  "scripts": {
-    "build": "… iOS/Android 빌드 …",
-    "deploy": "rnd deploy"
-  }
-}
-```
+---
 
-### 2. 앱 루트 설정 `rnd.config.json`
+### 설치 · 설정
+
+| 명령 | 설명 |
+|------|------|
+| `npm i -D github:betterafter/react-native-deploy` | CLI 설치. `postinstall`으로 `rnd.config.json` 생성 |
+| `pnpm add -D github:betterafter/react-native-deploy` | pnpm |
+| `yarn add -D github:betterafter/react-native-deploy` | yarn |
+| `npm i -D file:../react-native-deploy` | 이 저장소를 로컬에서 붙일 때 |
+| `npx rnd init` | config가 없을 때 수동 생성 (이미 있으면 스킵) |
+| `npx rnd init --force` | config 덮어쓰기 |
+| `npx rnd init --api-url https://…` | 생성하면서 `apiUrl`까지 넣기 |
+| `npx rnd --help` | 전체 명령 목록 |
+
+자동 생성된 `rnd.config.json` 예:
 
 ```json
 {
   "appId": "my-app",
   "bundleId": "com.example.app",
-  "apiUrl": "https://your-console.vercel.app",
+  "apiUrl": "https://YOUR_CONSOLE_URL",
   "artifact": {
     "ios": "./build/App.ipa",
     "android": "./android/app/build/outputs/apk/release/app-release.apk"
@@ -77,47 +73,63 @@ npx rnd --help
 }
 ```
 
-예시는 저장소의 [`rnd.config.example.json`](./rnd.config.example.json)을 참고하세요.  
-`expoExport`는 샌드박스용으로 `expo export`를 배포 전에 돌릴지입니다. Expo 프로젝트면 기본이 켜져 있어서 보통 적지 않아도 됩니다.
+| 필드 | 누가 손대나 |
+|------|-------------|
+| `apiUrl` | **필수** — 호스팅한 콘솔 URL |
+| `appId` / `bundleId` | 보통 자동. 틀리면만 수정 |
+| `artifact` | IPA/APK 경로가 기본과 다를 때만 |
+| `expoExport` / `export` | Expo면 기본값 그대로인 경우가 많음 |
 
-### 3. API 토큰 한 번만 저장
+이 저장소에서 CLI 소스를 고친 뒤에는 `npm run build:cli`로 `packages/cli/dist`를 다시 만들고 커밋하세요.
 
-콘솔의 `DEPLOY_API_TOKEN`과 같은 값을 로컬에 둡니다.
+---
 
-```bash
-npx rnd token add
-# → ~/.rnd/credentials  (권한 0600, git에 안 올라감)
+### 토큰
 
-npx rnd token list
-npx rnd token remove          # default 프로필
-npx rnd token add staging --api-key '…'
-npx rnd deploy --profile staging
-```
+토큰은 git에 올리지 않고 로컬(`~/.rnd/credentials`, 권한 0600)에만 둡니다.  
+값은 콘솔 env의 `DEPLOY_API_TOKEN`과 같아야 합니다.
 
-우선순위: `--token` → `RND_API_TOKEN` 환경변수 → `~/.rnd/credentials` 프로필
+| 명령 | 설명 |
+|------|------|
+| `npx rnd token add` | 기본 프로필에 토큰 저장 (대화형 입력) |
+| `npx rnd token add --api-key '…'` | 인자로 바로 저장 |
+| `npx rnd token add staging` | `staging` 프로필로 저장 |
+| `npx rnd token list` | 프로필 이름만 나열 (토큰 값은 안 보여 줌) |
+| `npx rnd token remove` | default 프로필 삭제 |
+| `npx rnd token remove staging` | 해당 프로필 삭제 |
 
-### 4. 배포
+배포 시 토큰 찾는 순서: `--token` → 환경변수 `RND_API_TOKEN` → `~/.rnd/credentials` 프로필  
+프로필을 쓰려면: `npx rnd deploy --profile staging`
 
-`npx expo export`는 앱 JS·자산을 폴더로 뽑는 Expo 명령입니다. 샌드박스 QR은 이 결과물을 올립니다.  
-**Expo 앱에서는 `rnd deploy`가 이걸 기본으로 실행**하므로 따로 칠 필요 없습니다.
+---
 
-```bash
-npm run build                 # IPA/APK (있을 때)
-npx rnd deploy -m "홈 화면"   # 설치 업로드 + expo export + 샌드박스 QR 업로드
-```
+### 빌드 · 배포
 
-- IPA/APK → 설치용 QR (iOS / Android)
-- `expo export` 결과 → 샌드박스 QR (QR 테스트)
+| 명령 | 설명 |
+|------|------|
+| `npm run build` | 앱 레포의 빌드 스크립트 (IPA/APK). 프로젝트마다 다름 |
+| `npx rnd deploy -m "메모"` | 기본 배포. 설치 파일 + (Expo면) `expo export` 후 샌드박스 QR |
+| `npm run deploy` | `package.json`에 넣어진 경우 `rnd deploy` 별칭 |
+| `npx rnd deploy -f ./app.apk` | config의 artifact 대신 파일 직접 지정 |
+| `npx rnd deploy --export-only -m "…"` | 샌드박스 QR만 (설치 파일 없음) |
+| `npx rnd deploy --skip-export` | 설치 파일만 (샌드박스 생략) |
+| `npx rnd deploy --skip-expo-export` | 이미 있는 `./dist`만 쓰고 `expo export`는 안 돌림 |
+| `npx rnd upload …` | `deploy`와 동일 |
+| `npx rnd open` | config의 콘솔 URL 출력 |
+
+`npx expo export`는 JS·자산을 폴더로 뽑는 Expo 명령입니다. 샌드박스 QR은 이 결과물을 올립니다.  
+**Expo 앱에서는 `rnd deploy`가 기본으로 export를 실행**하므로 따로 칠 필요가 없습니다.
 
 | 설정 / 플래그 | 동작 |
 |---------------|------|
-| (기본, Expo 프로젝트) | `expo export` 실행 후 artifact + sandbox 둘 다 |
-| `expoExport: false` | export 명령을 안 돌림 (기존 `./dist`만 사용) |
+| (기본, Expo) | `expo export` 후 artifact + sandbox 둘 다 |
+| `expoExport: false` | export 명령을 안 돌림 (기존 `./dist`만) |
 | `--skip-expo-export` | 위와 같음 (한 번만) |
 | `--skip-export` | 설치 파일만 |
-| `--export-only` | 샌드박스만 (`expo export` 포함) |
+| `--export-only` | 샌드박스만 |
 
-샌드박스 QR은 스캔한 뒤 앱을 완전히 종료하고 다시 열면 로드됩니다. export는 샌드박스와 같은 Expo SDK 57로 맞춥니다.
+- IPA/APK → 설치용 QR  
+- export → 샌드박스 QR 테스트 (SDK / `runtimeVersion`은 샌드박스와 맞출 것, 현재 **57.0.0**)
 
 ---
 
