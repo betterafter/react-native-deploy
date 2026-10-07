@@ -71,7 +71,8 @@ npx rnd --help
   "artifact": {
     "ios": "./build/App.ipa",
     "android": "./android/app/build/outputs/apk/release/app-release.apk"
-  }
+  },
+  "export": "./dist"
 }
 ```
 
@@ -95,19 +96,27 @@ npx rnd deploy --profile staging
 
 ### 4. 배포
 
-설치 파일 QR은 그 APK·IPA를 폰에 설치합니다. Expo export QR은 미리 설치해 둔 샌드박스 안에서 화면을 엽니다. export는 샌드박스와 같은 Expo SDK 57로 만듭니다.
+`npx rnd deploy`는 **있는 것을 모두** 올립니다.
+
+- IPA/APK → 설치용 QR (플랫폼: iOS / Android)
+- Expo export (`./dist` 또는 `rnd.config.json`의 `export`) → 샌드박스 QR (플랫폼: QR 테스트)
 
 ```bash
-# 설치 파일
-npm run build
-npx rnd deploy -m "ad size center"
-
-# 샌드박스 QR 테스트
-npx expo export
-npx rnd deploy --export ./dist -m "홈 화면"
+npm run build          # IPA/APK
+npx expo export        # 샌드박스용 JS 번들 → ./dist
+npx rnd deploy -m "홈 화면"
 ```
 
-`--export`만 쓰면 `rnd.config.json`의 `export`(없으면 `./dist`)를 올립니다. 끝나면 콘솔 URL이 출력됩니다. 웹에서 **테스트**를 누르면 QR이 열립니다. 샌드박스 QR은 스캔한 뒤 앱을 완전히 종료하고 다시 열면 그 화면이 로드됩니다.
+콘솔에 설치 행과 QR 테스트 행이 같이 생깁니다. 샌드박스 QR은 스캔한 뒤 앱을 완전히 종료하고 다시 열면 로드됩니다.
+
+| 플래그 | 동작 |
+|--------|------|
+| (기본) | artifact + export 둘 다 (있는 것만) |
+| `--skip-export` | 설치 파일만 |
+| `--export-only` | 샌드박스 export만 |
+| `--export ./dist` | export 경로 지정 (설치 파일도 있으면 같이) |
+
+export는 샌드박스와 같은 Expo SDK 57로 만듭니다.
 
 ---
 

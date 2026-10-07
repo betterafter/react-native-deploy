@@ -362,19 +362,34 @@ Done.
 var program = new Command();
 program.name("rnd").description("react-native-deploy \u2014 like `ait deploy`, for IPA/APK release consoles").version("0.1.0");
 function addDeployOptions(cmd) {
-  return cmd.option("-f, --file <path>", "Path to .ipa / .apk / .aab (or set artifact in rnd.config.json)").option("-a, --app <appId>", "App id").option("-p, --platform <platform>", "ios | android").option("-v, --version <label>", "Version label").option("-m, --memo <text>", "Memo", "").option("--sdk <version>", "Optional SDK / RN version label").option("--bundle-id <id>", "iOS bundle id for Ad Hoc manifest").option("--api-url <url>", "Console API base").option("--token <token>", "Deploy API token (or use `rnd token add`)").option("--profile <name>", "Credentials profile name", "default").option("--export [dir]", "Upload an Expo export directory and open it with the sandbox QR");
+  return cmd.option("-f, --file <path>", "Path to .ipa / .apk / .aab (or set artifact in rnd.config.json)").option("-a, --app <appId>", "App id").option("-p, --platform <platform>", "ios | android").option("-v, --version <label>", "Version label").option("-m, --memo <text>", "Memo", "").option("--sdk <version>", "Optional SDK / RN version label").option("--bundle-id <id>", "iOS bundle id for Ad Hoc manifest").option("--api-url <url>", "Console API base").option("--token <token>", "Deploy API token (or use `rnd token add`)").option("--profile <name>", "Credentials profile name", "default").option(
+    "--export [dir]",
+    "Expo export dir for sandbox QR (default: config export or ./dist)"
+  ).option("--export-only", "Upload sandbox export only (skip IPA/APK)").option("--skip-export", "Upload IPA/APK only (skip sandbox export)");
 }
-function resolveArtifact(cfg, platform, fileFlag) {
+function resolveArtifact(cfg, platform, fileFlag, required) {
   if (fileFlag) return fileFlag;
   if (platform === "android") {
     if (!cfg.artifact?.android) {
+      if (!required) return null;
       throw new Error("No Android artifact. Set artifact.android in rnd.config.json or pass -f.");
+    }
+    const path = resolve2(process.cwd(), cfg.artifact.android);
+    if (!existsSync2(path)) {
+      if (!required) return null;
+      throw new Error(`Android artifact not found: ${cfg.artifact.android}`);
     }
     return cfg.artifact.android;
   }
   if (platform === "ios") {
     if (!cfg.artifact?.ios) {
+      if (!required) return null;
       throw new Error("No iOS artifact. Set artifact.ios in rnd.config.json or pass -f.");
+    }
+    const path = resolve2(process.cwd(), cfg.artifact.ios);
+    if (!existsSync2(path)) {
+      if (!required) return null;
+      throw new Error(`iOS artifact not found: ${cfg.artifact.ios}`);
     }
     return cfg.artifact.ios;
   }
@@ -387,52 +402,93 @@ function resolveArtifact(cfg, platform, fileFlag) {
   }
   if (androidOk && android) return android;
   if (iosOk && ios) return ios;
+  if (!required) return null;
   throw new Error(
     "No artifact file found. Build the app first, then either:\n  npx rnd deploy -f ./path/to/app.apk\nor set artifact.ios / artifact.android in rnd.config.json to a file that exists."
   );
 }
+function resolveExportDir(cfg, exportOpt) {
+  if (exportOpt === false) return null;
+  const dir = typeof exportOpt === "string" ? exportOpt : cfg.export ?? "./dist";
+  const abs = resolve2(process.cwd(), dir);
+  if (existsSync2(abs)) return dir;
+  if (typeof exportOpt === "string" || exportOpt === true) {
+    throw new Error(
+      `Export directory not found: ${dir}
+Run \`npx expo export\` first, or pass --export ./path/to/dist.`
+    );
+  }
+  return null;
+}
 async function runDeploy(opts) {
   const cfg = loadConfig();
-  if (opts.export) {
-    const dir = typeof opts.export === "string" ? opts.export : cfg.export ?? "./dist";
-    const token2 = resolveToken({
-      token: typeof opts.token === "string" ? opts.token : void 0,
-      profile: typeof opts.profile === "string" ? opts.profile : void 0
-    });
-    await deployExport({
-      dir,
-      appId: (typeof opts.app === "string" ? opts.app : void 0) ?? cfg.appId ?? env("RND_APP_ID", "my-app"),
-      version: (typeof opts.version === "string" ? opts.version : void 0) ?? defaultVersion(),
-      memo: typeof opts.memo === "string" ? opts.memo : "",
-      sdk: typeof opts.sdk === "string" ? opts.sdk : void 0,
-      apiUrl: (typeof opts.apiUrl === "string" ? opts.apiUrl : void 0) ?? cfg.apiUrl ?? env("RND_API_URL"),
-      token: token2
-    });
-    return;
-  }
-  const file = resolveArtifact(
-    cfg,
-    typeof opts.platform === "string" ? opts.platform : void 0,
-    typeof opts.file === "string" ? opts.file : void 0
-  );
+  const exportOnly = opts.exportOnly === true;
+  const skipExport = opts.skipExport === true;
   const token = resolveToken({
     token: typeof opts.token === "string" ? opts.token : void 0,
     profile: typeof opts.profile === "string" ? opts.profile : void 0
   });
-  await deployFile({
-    file,
-    appId: (typeof opts.app === "string" ? opts.app : void 0) ?? cfg.appId ?? env("RND_APP_ID", "my-app"),
-    platform: typeof opts.platform === "string" ? opts.platform : void 0,
-    version: typeof opts.version === "string" ? opts.version : void 0,
-    memo: typeof opts.memo === "string" ? opts.memo : void 0,
-    sdk: typeof opts.sdk === "string" ? opts.sdk : void 0,
-    bundleId: (typeof opts.bundleId === "string" ? opts.bundleId : void 0) ?? cfg.bundleId ?? process.env.RND_BUNDLE_ID,
-    apiUrl: (typeof opts.apiUrl === "string" ? opts.apiUrl : void 0) ?? cfg.apiUrl ?? env("RND_API_URL"),
-    token
-  });
+  const appId = (typeof opts.app === "string" ? opts.app : void 0) ?? cfg.appId ?? env("RND_APP_ID", "my-app");
+  const version = (typeof opts.version === "string" ? opts.version : void 0) ?? defaultVersion();
+  const memo = typeof opts.memo === "string" ? opts.memo : "";
+  const sdk = typeof opts.sdk === "string" ? opts.sdk : void 0;
+  const apiUrl = (typeof opts.apiUrl === "string" ? opts.apiUrl : void 0) ?? cfg.apiUrl ?? env("RND_API_URL");
+  const bundleId = (typeof opts.bundleId === "string" ? opts.bundleId : void 0) ?? cfg.bundleId ?? process.env.RND_BUNDLE_ID;
+  let uploaded = 0;
+  if (!exportOnly) {
+    const file = resolveArtifact(
+      cfg,
+      typeof opts.platform === "string" ? opts.platform : void 0,
+      typeof opts.file === "string" ? opts.file : void 0,
+      /* required */
+      Boolean(opts.file || opts.platform || skipExport)
+    );
+    if (file) {
+      await deployFile({
+        file,
+        appId,
+        platform: typeof opts.platform === "string" ? opts.platform : void 0,
+        version,
+        memo,
+        sdk,
+        bundleId,
+        apiUrl,
+        token
+      });
+      uploaded += 1;
+    } else {
+      process.stdout.write("No install artifact found \u2014 skipping IPA/APK upload.\n");
+    }
+  }
+  if (!skipExport) {
+    const dir = resolveExportDir(cfg, exportOnly ? opts.export ?? true : opts.export);
+    if (dir) {
+      await deployExport({
+        dir,
+        appId,
+        version,
+        memo,
+        sdk,
+        apiUrl,
+        token
+      });
+      uploaded += 1;
+    } else if (!exportOnly) {
+      process.stdout.write(
+        "No Expo export directory found \u2014 skipping sandbox QR upload.\n(Run `npx expo export` then deploy again, or pass --export ./dist)\n"
+      );
+    }
+  }
+  if (uploaded === 0) {
+    throw new Error(
+      "Nothing to deploy. Need at least one of:\n  \u2022 IPA/APK (artifact in rnd.config.json or -f)\n  \u2022 Expo export dir (./dist, config.export, or --export)"
+    );
+  }
 }
 addDeployOptions(
-  program.command("deploy").description("Upload the built IPA/APK to your release console (ait deploy equivalent)")
+  program.command("deploy").description(
+    "Upload install file (IPA/APK) and Expo export (sandbox QR) when both are present"
+  )
 ).action(async (opts) => {
   await runDeploy(opts);
 });
