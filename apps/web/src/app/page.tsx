@@ -28,6 +28,16 @@ function platformLabel(platform: string) {
   return platform;
 }
 
+type TestTab = 'install' | 'sandbox';
+
+function buildsForVersion(all: BuildRecord[], target: BuildRecord) {
+  const sameVersion = all.filter((b) => b.version === target.version);
+  const pool = sameVersion.length > 0 ? sameVersion : [target];
+  const install = pool.filter((b) => b.platform === 'ios' || b.platform === 'android');
+  const sandboxBuild = pool.find((b) => b.platform === 'sandbox') ?? null;
+  return { install, sandboxBuild };
+}
+
 export default function HomePage() {
   const [apps, setApps] = useState<AppSummary[]>([]);
   const [appId, setAppId] = useState('');
@@ -38,6 +48,8 @@ export default function HomePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [testTarget, setTestTarget] = useState<BuildRecord | null>(null);
+  const [testTab, setTestTab] = useState<TestTab>('install');
+  const [installPlatform, setInstallPlatform] = useState<'ios' | 'android'>('android');
   const [token, setToken] = useState('');
   const [sandbox, setSandbox] = useState<{
     name: string;
@@ -174,6 +186,39 @@ export default function HomePage() {
 
   const filtering = statusFilter !== 'all' || q.trim().length > 0;
 
+  const testPair = useMemo(() => {
+    if (!testTarget) return null;
+    return buildsForVersion(builds, testTarget);
+  }, [builds, testTarget]);
+
+  const activeInstall = useMemo(() => {
+    if (!testPair) return null;
+    return (
+      testPair.install.find((b) => b.platform === installPlatform) ??
+      testPair.install[0] ??
+      null
+    );
+  }, [testPair, installPlatform]);
+
+  function openTest(b: BuildRecord) {
+    const pair = buildsForVersion(builds, b);
+    const initialTab: TestTab =
+      b.platform === 'sandbox'
+        ? 'sandbox'
+        : pair.install.length > 0
+          ? 'install'
+          : pair.sandboxBuild
+            ? 'sandbox'
+            : 'install';
+    setTestTab(initialTab);
+    if (b.platform === 'ios' || b.platform === 'android') {
+      setInstallPlatform(b.platform);
+    } else if (pair.install[0]?.platform === 'ios' || pair.install[0]?.platform === 'android') {
+      setInstallPlatform(pair.install[0].platform);
+    }
+    setTestTarget(b);
+  }
+
   return (
     <>
     {sandbox ? (
@@ -260,7 +305,7 @@ export default function HomePage() {
           <div className="empty">
             {appId ? `${appId}에는 아직 빌드가 없습니다.` : '아직 올린 빌드가 없습니다.'}
             <div className="code" style={{ marginTop: 12, textAlign: 'left' }}>
-              {`npx expo export\nnpx rnd deploy --export ./dist -m "메모"\n\nnpx rnd deploy -f ./app.apk -m "메모"`}
+              {`npx rnd deploy -m "메모"\n# Expo 앱이면 설치 파일 + 샌드박스 QR을 같이 올립니다`}
             </div>
           </div>
         ) : filtered.length === 0 ? (
@@ -311,7 +356,7 @@ export default function HomePage() {
                       <button
                         type="button"
                         className="btn btn-primary"
-                        onClick={() => setTestTarget(b)}
+                        onClick={() => openTest(b)}
                       >
                         테스트
                       </button>
@@ -324,23 +369,103 @@ export default function HomePage() {
         )}
       </section>
 
-      {testTarget && (
+      {testTarget && testPair && (
         <div className="modal-backdrop" onClick={() => setTestTarget(null)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>{testTarget.platform === 'sandbox' ? '샌드박스 테스트' : '테스트 설치'}</h3>
-            <p>
-              {testTarget.version} · {platformLabel(testTarget.platform)}
-              <br />
-              {testTarget.platform === 'sandbox'
-                ? 'QR을 스캔하면 샌드박스 앱이 이 화면을 저장합니다. 앱을 완전히 종료한 뒤 다시 열면 로드됩니다.'
-                : '휴대폰으로 QR을 스캔하면 이 빌드를 설치합니다.'}
+            <h3>테스트</h3>
+            <p style={{ marginBottom: 12 }}>
+              {testTarget.version}
+              {testTarget.memo ? ` · ${testTarget.memo}` : ''}
             </p>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={`/api/qr?appId=${encodeURIComponent(testTarget.appId)}&id=${encodeURIComponent(testTarget.id)}`}
-              alt={testTarget.platform === 'sandbox' ? '샌드박스 QR' : '설치 QR'}
-            />
-            <p style={{ marginTop: 0 }}>{testTarget.installUrl}</p>
+
+            <div className="modal-tabs" role="tablist" aria-label="테스트 종류">
+              <button
+                type="button"
+                role="tab"
+                className="modal-tab"
+                aria-selected={testTab === 'install'}
+                disabled={testPair.install.length === 0}
+                onClick={() => setTestTab('install')}
+              >
+                설치용
+              </button>
+              <button
+                type="button"
+                role="tab"
+                className="modal-tab"
+                aria-selected={testTab === 'sandbox'}
+                disabled={!testPair.sandboxBuild}
+                onClick={() => setTestTab('sandbox')}
+              >
+                QR 테스트
+              </button>
+            </div>
+
+            {testTab === 'install' ? (
+              testPair.install.length === 0 ? (
+                <div className="modal-empty">
+                  같은 버전의 설치 파일이 없습니다.
+                  <br />
+                  `rnd deploy`로 IPA/APK를 같이 올려 주세요.
+                </div>
+              ) : (
+                <>
+                  <p>
+                    휴대폰으로 QR을 스캔하면 이 빌드를 설치합니다.
+                  </p>
+                  {testPair.install.length > 1 ? (
+                    <div className="platform-tabs" role="tablist" aria-label="설치 플랫폼">
+                      {testPair.install.map((b) => (
+                        <button
+                          key={b.id}
+                          type="button"
+                          role="tab"
+                          className="platform-tab"
+                          aria-selected={activeInstall?.id === b.id}
+                          onClick={() => {
+                            if (b.platform === 'ios' || b.platform === 'android') {
+                              setInstallPlatform(b.platform);
+                            }
+                          }}
+                        >
+                          {platformLabel(b.platform)}
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                  {activeInstall ? (
+                    <>
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/api/qr?appId=${encodeURIComponent(activeInstall.appId)}&id=${encodeURIComponent(activeInstall.id)}`}
+                        alt="설치 QR"
+                      />
+                      <p style={{ marginTop: 0 }}>{activeInstall.installUrl}</p>
+                    </>
+                  ) : null}
+                </>
+              )
+            ) : testPair.sandboxBuild ? (
+              <>
+                <p>
+                  QR을 스캔하면 샌드박스 앱이 이 화면을 저장합니다. 앱을 완전히 종료한 뒤
+                  다시 열면 로드됩니다.
+                </p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/qr?appId=${encodeURIComponent(testPair.sandboxBuild.appId)}&id=${encodeURIComponent(testPair.sandboxBuild.id)}`}
+                  alt="샌드박스 QR"
+                />
+                <p style={{ marginTop: 0 }}>{testPair.sandboxBuild.installUrl}</p>
+              </>
+            ) : (
+              <div className="modal-empty">
+                같은 버전의 샌드박스 export가 없습니다.
+                <br />
+                Expo 앱에서 `rnd deploy`를 다시 실행해 주세요.
+              </div>
+            )}
+
             <button
               type="button"
               className="btn btn-primary"

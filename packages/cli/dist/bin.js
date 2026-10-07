@@ -2,6 +2,7 @@
 
 // src/bin.ts
 import { Command } from "commander";
+import { spawnSync } from "child_process";
 import { createInterface } from "readline/promises";
 import { stdin as input, stdout as output } from "process";
 import { existsSync as existsSync2, readFileSync as readFileSync2, statSync } from "fs";
@@ -365,7 +366,10 @@ function addDeployOptions(cmd) {
   return cmd.option("-f, --file <path>", "Path to .ipa / .apk / .aab (or set artifact in rnd.config.json)").option("-a, --app <appId>", "App id").option("-p, --platform <platform>", "ios | android").option("-v, --version <label>", "Version label").option("-m, --memo <text>", "Memo", "").option("--sdk <version>", "Optional SDK / RN version label").option("--bundle-id <id>", "iOS bundle id for Ad Hoc manifest").option("--api-url <url>", "Console API base").option("--token <token>", "Deploy API token (or use `rnd token add`)").option("--profile <name>", "Credentials profile name", "default").option(
     "--export [dir]",
     "Expo export dir for sandbox QR (default: config export or ./dist)"
-  ).option("--export-only", "Upload sandbox export only (skip IPA/APK)").option("--skip-export", "Upload IPA/APK only (skip sandbox export)");
+  ).option("--export-only", "Upload sandbox export only (skip IPA/APK)").option("--skip-export", "Upload IPA/APK only (skip sandbox export)").option(
+    "--skip-expo-export",
+    "Do not run `expo export`; upload an existing export directory only"
+  );
 }
 function resolveArtifact(cfg, platform, fileFlag, required) {
   if (fileFlag) return fileFlag;
@@ -407,18 +411,58 @@ function resolveArtifact(cfg, platform, fileFlag, required) {
     "No artifact file found. Build the app first, then either:\n  npx rnd deploy -f ./path/to/app.apk\nor set artifact.ios / artifact.android in rnd.config.json to a file that exists."
   );
 }
-function resolveExportDir(cfg, exportOpt) {
+function exportDirPath(cfg, exportOpt) {
+  return typeof exportOpt === "string" ? exportOpt : cfg.export ?? "./dist";
+}
+function resolveExportDir(cfg, exportOpt, required) {
   if (exportOpt === false) return null;
-  const dir = typeof exportOpt === "string" ? exportOpt : cfg.export ?? "./dist";
+  const dir = exportDirPath(cfg, exportOpt);
   const abs = resolve2(process.cwd(), dir);
   if (existsSync2(abs)) return dir;
-  if (typeof exportOpt === "string" || exportOpt === true) {
+  if (required) {
     throw new Error(
       `Export directory not found: ${dir}
-Run \`npx expo export\` first, or pass --export ./path/to/dist.`
+Deploy runs \`expo export\` by default. If you skipped it, pass an existing --export dir.`
     );
   }
   return null;
+}
+function projectHasExpo() {
+  const pkgPath = resolve2(process.cwd(), "package.json");
+  if (!existsSync2(pkgPath)) return false;
+  try {
+    const pkg = JSON.parse(readFileSync2(pkgPath, "utf8"));
+    return Boolean(pkg.dependencies?.expo || pkg.devDependencies?.expo);
+  } catch {
+    return false;
+  }
+}
+function shouldRunExpoExport(cfg, opts) {
+  if (opts.skipExpoExport === true) return false;
+  if (cfg.expoExport === false) return false;
+  if (cfg.expoExport === true) return true;
+  return projectHasExpo();
+}
+function runExpoExport(outputDir) {
+  const abs = resolve2(process.cwd(), outputDir);
+  process.stdout.write(`Running expo export \u2192 ${outputDir}\u2026
+`);
+  const result = spawnSync(
+    "npx",
+    ["expo", "export", "--output-dir", abs],
+    {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      shell: process.platform === "win32",
+      env: process.env
+    }
+  );
+  if (result.error) {
+    throw new Error(`Failed to run expo export: ${result.error.message}`);
+  }
+  if (result.status !== 0) {
+    throw new Error(`expo export failed (exit ${result.status ?? 1})`);
+  }
 }
 async function runDeploy(opts) {
   const cfg = loadConfig();
@@ -461,7 +505,17 @@ async function runDeploy(opts) {
     }
   }
   if (!skipExport) {
-    const dir = resolveExportDir(cfg, exportOnly ? opts.export ?? true : opts.export);
+    const exportOpt = exportOnly ? opts.export ?? true : opts.export;
+    const dirPath = exportDirPath(cfg, exportOpt);
+    if (shouldRunExpoExport(cfg, opts)) {
+      runExpoExport(dirPath);
+    }
+    const dir = resolveExportDir(
+      cfg,
+      exportOpt,
+      /* required */
+      exportOnly || shouldRunExpoExport(cfg, opts) || typeof opts.export === "string"
+    );
     if (dir) {
       await deployExport({
         dir,
@@ -475,19 +529,19 @@ async function runDeploy(opts) {
       uploaded += 1;
     } else if (!exportOnly) {
       process.stdout.write(
-        "No Expo export directory found \u2014 skipping sandbox QR upload.\n(Run `npx expo export` then deploy again, or pass --export ./dist)\n"
+        "No sandbox export \u2014 skipping QR test upload.\n(Expo project: deploy runs `expo export` by default. Or set expoExport: true in rnd.config.json)\n"
       );
     }
   }
   if (uploaded === 0) {
     throw new Error(
-      "Nothing to deploy. Need at least one of:\n  \u2022 IPA/APK (artifact in rnd.config.json or -f)\n  \u2022 Expo export dir (./dist, config.export, or --export)"
+      "Nothing to deploy. Need at least one of:\n  \u2022 IPA/APK (artifact in rnd.config.json or -f)\n  \u2022 Expo export (auto via `expo export`, or an existing --export dir)"
     );
   }
 }
 addDeployOptions(
   program.command("deploy").description(
-    "Upload install file (IPA/APK) and Expo export (sandbox QR) when both are present"
+    "Upload IPA/APK and sandbox QR export (runs `expo export` by default in Expo apps)"
   )
 ).action(async (opts) => {
   await runDeploy(opts);

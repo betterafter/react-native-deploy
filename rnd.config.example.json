@@ -6,5 +6,6 @@
     "ios": "./build/App.ipa",
     "android": "./android/app/build/outputs/apk/release/app-release.apk"
   },
-  "export": "./dist"
+  "export": "./dist",
+  "expoExport": true
 }

@@ -72,11 +72,13 @@ npx rnd --help
     "ios": "./build/App.ipa",
     "android": "./android/app/build/outputs/apk/release/app-release.apk"
   },
-  "export": "./dist"
+  "export": "./dist",
+  "expoExport": true
 }
 ```
 
-예시는 저장소의 [`rnd.config.example.json`](./rnd.config.example.json)을 참고하세요.
+예시는 저장소의 [`rnd.config.example.json`](./rnd.config.example.json)을 참고하세요.  
+`expoExport`는 샌드박스용으로 `expo export`를 배포 전에 돌릴지입니다. Expo 프로젝트면 기본이 켜져 있어서 보통 적지 않아도 됩니다.
 
 ### 3. API 토큰 한 번만 저장
 
@@ -96,27 +98,26 @@ npx rnd deploy --profile staging
 
 ### 4. 배포
 
-`npx rnd deploy`는 **있는 것을 모두** 올립니다.
-
-- IPA/APK → 설치용 QR (플랫폼: iOS / Android)
-- Expo export (`./dist` 또는 `rnd.config.json`의 `export`) → 샌드박스 QR (플랫폼: QR 테스트)
+`npx expo export`는 앱 JS·자산을 폴더로 뽑는 Expo 명령입니다. 샌드박스 QR은 이 결과물을 올립니다.  
+**Expo 앱에서는 `rnd deploy`가 이걸 기본으로 실행**하므로 따로 칠 필요 없습니다.
 
 ```bash
-npm run build          # IPA/APK
-npx expo export        # 샌드박스용 JS 번들 → ./dist
-npx rnd deploy -m "홈 화면"
+npm run build                 # IPA/APK (있을 때)
+npx rnd deploy -m "홈 화면"   # 설치 업로드 + expo export + 샌드박스 QR 업로드
 ```
 
-콘솔에 설치 행과 QR 테스트 행이 같이 생깁니다. 샌드박스 QR은 스캔한 뒤 앱을 완전히 종료하고 다시 열면 로드됩니다.
+- IPA/APK → 설치용 QR (iOS / Android)
+- `expo export` 결과 → 샌드박스 QR (QR 테스트)
 
-| 플래그 | 동작 |
-|--------|------|
-| (기본) | artifact + export 둘 다 (있는 것만) |
+| 설정 / 플래그 | 동작 |
+|---------------|------|
+| (기본, Expo 프로젝트) | `expo export` 실행 후 artifact + sandbox 둘 다 |
+| `expoExport: false` | export 명령을 안 돌림 (기존 `./dist`만 사용) |
+| `--skip-expo-export` | 위와 같음 (한 번만) |
 | `--skip-export` | 설치 파일만 |
-| `--export-only` | 샌드박스 export만 |
-| `--export ./dist` | export 경로 지정 (설치 파일도 있으면 같이) |
+| `--export-only` | 샌드박스만 (`expo export` 포함) |
 
-export는 샌드박스와 같은 Expo SDK 57로 만듭니다.
+샌드박스 QR은 스캔한 뒤 앱을 완전히 종료하고 다시 열면 로드됩니다. export는 샌드박스와 같은 Expo SDK 57로 맞춥니다.
 
 ---
 
