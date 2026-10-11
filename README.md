@@ -5,6 +5,7 @@
 
 ```bash
 npm i -D github:betterafter/react-native-deploy
+npx rnd init               # rnd.config.json (npm 설치 시 자동 생성되므로 생략 가능)
 npx rnd token add          # 토큰 + 콘솔 URL
 npx rnd build              # 설치용 APK
 npx rnd deploy -m "홈 화면" # 파일 설치 QR + 샌드박스 QR
@@ -37,15 +38,23 @@ npm run dev                           # 로컬 확인 후 apps/web → Vercel �
 
 ## 앱 개발자
 
-개발자는 **콘솔 URL** + **배포 토큰**만 있으면 됩니다. 설치 시 `rnd.config.json`이 생깁니다.
+개발자는 **콘솔 URL** + **배포 토큰**만 있으면 됩니다.
 
 ### 설치 · 설정
 
 | 명령 | |
 |------|--|
-| `npm i -D github:betterafter/react-native-deploy` | CLI 설치 (+ config) |
+| `npm i -D github:betterafter/react-native-deploy` | CLI 설치 (+ config 자동 생성) |
+| `pnpm add -D github:betterafter/react-native-deploy` | CLI 설치 (config는 `rnd init`으로) |
 | `npx rnd init` / `--force` / `--api-url …` | config 수동 생성·덮어쓰기 |
+| `npx rnd init --with-scripts` | `package.json`에 `build` / `deploy` 스크립트까지 추가 |
 | `npx rnd --help` | 전체 도움말 |
+
+pnpm·Yarn, 그리고 `--ignore-scripts` 설치는 의존성의 `postinstall`을 실행하지 않습니다. 이 경우 `rnd.config.json`이 생기지 않으니 설치 후 `npx rnd init`을 한 번 실행하세요.
+
+`rnd init`은 기본적으로 `rnd.config.json`만 만들고 `package.json`은 건드리지 않습니다. 모노레포 루트에서는 `build` / `deploy`가 보통 워크스페이스로 분기하므로, 덮어쓰기를 원할 때만 `--with-scripts`를 붙이세요.
+
+버전을 고정하려면 태그를 붙여 설치합니다: `npm i -D github:betterafter/react-native-deploy#v0.1.0`
 
 `rnd.config.json` — `apiUrl`만 필수(`https://` 생략 OK). `artifact` / `export`는 경로가 다를 때만 수정.
 

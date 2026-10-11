@@ -2,7 +2,7 @@
 import {
   resolveConsumerRoot,
   scaffoldRndConfig
-} from "./chunk-OWPRZIS6.js";
+} from "./chunk-IY27KQ6G.js";
 
 // src/bin.ts
 import { Command } from "commander";
@@ -416,7 +416,8 @@ Done.
 function env(name, fallback) {
   const v = process.env[name] ?? fallback;
   if (v == null || v === "") {
-    throw new Error(`Missing ${name}. Set env or rnd.config.json / CLI flag.`);
+    const hint = existsSync4(configPath(process.cwd())) ? "Set env or rnd.config.json / CLI flag." : "No rnd.config.json here \u2014 run `npx rnd init` first.";
+    throw new Error(`Missing ${name}. ${hint}`);
   }
   return v;
 }
@@ -730,29 +731,35 @@ addDeployOptions(
 ).action(async (opts) => {
   await runDeploy(opts);
 });
-program.command("init").description("Create rnd.config.json from package.json / app.json (safe: no overwrite)").option("--force", "Overwrite existing rnd.config.json").option("--api-url <url>", "Console base URL to write into config").option("--cwd <path>", "Project root (default: current directory)").action((opts) => {
-  const cwd = resolve4(opts.cwd ?? resolveConsumerRoot(process.cwd()));
-  const result = scaffoldRndConfig({
-    cwd,
-    force: Boolean(opts.force),
-    apiUrl: opts.apiUrl
-  });
-  if (result.created) {
-    process.stdout.write(
-      `Created ${result.path}
+program.command("init").description("Create rnd.config.json from package.json / app.json (safe: no overwrite)").option("--force", "Overwrite existing rnd.config.json").option("--api-url <url>", "Console base URL to write into config").option("--cwd <path>", "Project root (default: current directory)").option(
+  "--with-scripts",
+  "Also add build/deploy scripts to package.json (skipped by default)"
+).action(
+  (opts) => {
+    const cwd = resolve4(opts.cwd ?? resolveConsumerRoot(process.cwd()));
+    const result = scaffoldRndConfig({
+      cwd,
+      force: Boolean(opts.force),
+      apiUrl: opts.apiUrl,
+      addScripts: Boolean(opts.withScripts)
+    });
+    if (result.created) {
+      process.stdout.write(
+        `Created ${result.path}
 Next:
   npx rnd token add
   npx rnd build
   npx rnd deploy -m "\uBA54\uBAA8"
 `
-    );
-    return;
-  }
-  process.stdout.write(
-    `Skipped: ${result.reason ?? "unknown"}${result.path ? ` (${result.path})` : ""}
+      );
+      return;
+    }
+    process.stdout.write(
+      `Skipped: ${result.reason ?? "unknown"}${result.path ? ` (${result.path})` : ""}
 `
-  );
-});
+    );
+  }
+);
 var tokenCmd = program.command("token").description("Manage locally saved API tokens (~/.rnd/credentials)");
 tokenCmd.command("add").description("Save API token (+ console apiUrl into rnd.config.json if missing)").option("--api-key <token>", "API token value").option("--api-url <url>", "Console base URL to write into rnd.config.json").argument("[profile]", "Profile name", "default").action(async (profile, opts) => {
   const cwd = process.cwd();

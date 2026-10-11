@@ -2,6 +2,7 @@
   "name": "rnd",
   "private": true,
   "version": "0.1.0",
+  "type": "module",
   "description": "Self-hosted React Native release console — upload builds, QR test installs, promote to stores.",
   "bin": {
     "rnd": "./packages/cli/dist/bin.js"
@@ -14,7 +15,7 @@
     "build": "npm run build -w @rnd/web",
     "build:cli": "npm run build -w @rnd/cli",
     "cli": "npm run start -w @rnd/cli",
-    "postinstall": "node ./packages/cli/dist/postinstall.js"
+    "postinstall": "node ./packages/cli/dist/postinstall.js || exit 0"
   },
   "workspaces": [
     "apps/*",

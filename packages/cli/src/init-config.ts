@@ -58,13 +58,15 @@ export function resolveConsumerRoot(explicit?: string): string {
 }
 
 /**
- * Create rnd.config.json (and optionally a deploy script) from package.json / app.json.
+ * Create rnd.config.json from package.json / app.json.
  * Does not overwrite an existing config unless `force` is set.
+ * Never touches the consumer's package.json unless `addScripts` is set.
  */
 export function scaffoldRndConfig(opts: {
   cwd: string;
   force?: boolean;
   apiUrl?: string;
+  addScripts?: boolean;
 }): ScaffoldResult {
   const cwd = opts.cwd;
   const configPath = join(cwd, 'rnd.config.json');
@@ -115,8 +117,9 @@ export function scaffoldRndConfig(opts: {
 
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
 
-  // Universal scripts: `npm run build` / `npm run deploy` → rnd
-  if (pkg) {
+  // Opt-in only: rewriting a consumer's package.json is wrong in a monorepo,
+  // where `build`/`deploy` usually fan out to workspaces.
+  if (opts.addScripts && pkg) {
     const scripts = { ...(pkg.scripts ?? {}) };
     let changed = false;
     if (!scripts.build) {

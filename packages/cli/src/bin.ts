@@ -7,6 +7,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, extname, resolve } from 'node:path';
 import { runRndBuild } from './build.js';
 import {
+  configPath,
   isPlaceholderApiUrl,
   loadConfigFile,
   saveConfigFile,
@@ -28,7 +29,11 @@ type Platform = 'ios' | 'android';
 function env(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback;
   if (v == null || v === '') {
-    throw new Error(`Missing ${name}. Set env or rnd.config.json / CLI flag.`);
+    // pnpm and --ignore-scripts installs never run the postinstall scaffold.
+    const hint = existsSync(configPath(process.cwd()))
+      ? 'Set env or rnd.config.json / CLI flag.'
+      : 'No rnd.config.json here — run `npx rnd init` first.';
+    throw new Error(`Missing ${name}. ${hint}`);
   }
   return v;
 }
@@ -443,27 +448,39 @@ program
   .option('--force', 'Overwrite existing rnd.config.json')
   .option('--api-url <url>', 'Console base URL to write into config')
   .option('--cwd <path>', 'Project root (default: current directory)')
-  .action((opts: { force?: boolean; apiUrl?: string; cwd?: string }) => {
-    const cwd = resolve(opts.cwd ?? resolveConsumerRoot(process.cwd()));
-    const result = scaffoldRndConfig({
-      cwd,
-      force: Boolean(opts.force),
-      apiUrl: opts.apiUrl,
-    });
-    if (result.created) {
+  .option(
+    '--with-scripts',
+    'Also add build/deploy scripts to package.json (skipped by default)',
+  )
+  .action(
+    (opts: {
+      force?: boolean;
+      apiUrl?: string;
+      cwd?: string;
+      withScripts?: boolean;
+    }) => {
+      const cwd = resolve(opts.cwd ?? resolveConsumerRoot(process.cwd()));
+      const result = scaffoldRndConfig({
+        cwd,
+        force: Boolean(opts.force),
+        apiUrl: opts.apiUrl,
+        addScripts: Boolean(opts.withScripts),
+      });
+      if (result.created) {
+        process.stdout.write(
+          `Created ${result.path}\n` +
+            `Next:\n` +
+            `  npx rnd token add\n` +
+            `  npx rnd build\n` +
+            `  npx rnd deploy -m "메모"\n`,
+        );
+        return;
+      }
       process.stdout.write(
-        `Created ${result.path}\n` +
-          `Next:\n` +
-          `  npx rnd token add\n` +
-          `  npx rnd build\n` +
-          `  npx rnd deploy -m "메모"\n`,
+        `Skipped: ${result.reason ?? 'unknown'}${result.path ? ` (${result.path})` : ''}\n`,
       );
-      return;
-    }
-    process.stdout.write(
-      `Skipped: ${result.reason ?? 'unknown'}${result.path ? ` (${result.path})` : ''}\n`,
-    );
-  });
+    },
+  );
 
 const tokenCmd = program
   .command('token')

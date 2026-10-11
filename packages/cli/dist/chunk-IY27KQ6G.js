@@ -60,7 +60,7 @@ function scaffoldRndConfig(opts) {
   };
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}
 `, "utf8");
-  if (pkg) {
+  if (opts.addScripts && pkg) {
     const scripts = { ...pkg.scripts ?? {} };
     let changed = false;
     if (!scripts.build) {
