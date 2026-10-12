@@ -1,6 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { createRequire } from 'node:module';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { loadConfigFile, saveConfigFile } from './config-io.js';
 
@@ -135,7 +135,7 @@ function workspaceRootOf(start: string): string {
   );
 }
 
-export function detectPackageManager(root: string): PackageManager {
+export function preferredPackageManager(root: string): PackageManager {
   const declared = readPkg(root)?.packageManager ?? '';
   if (declared.startsWith('pnpm')) return 'pnpm';
   if (declared.startsWith('yarn')) return 'yarn';
@@ -148,6 +148,38 @@ export function detectPackageManager(root: string): PackageManager {
   }
   if (existsSync(join(root, 'yarn.lock'))) return 'yarn';
   return 'npm';
+}
+
+const FALLBACK_ORDER: PackageManager[] = ['npm', 'yarn', 'pnpm'];
+
+/** Use the project's package manager when it is installed. Otherwise use npm, yarn, or pnpm that exists on PATH. */
+export function choosePackageManager(
+  preferred: PackageManager,
+  available: (name: PackageManager) => boolean,
+): PackageManager {
+  if (available(preferred)) return preferred;
+  const fallback = FALLBACK_ORDER.find((name) => name !== preferred && available(name));
+  if (!fallback) {
+    throw new Error(
+      `This project uses ${preferred}, but ${preferred} is not installed and npm/yarn/pnpm were not found on PATH.`,
+    );
+  }
+  return fallback;
+}
+
+function commandExists(name: string): boolean {
+  const checker = process.platform === 'win32' ? 'where.exe' : 'which';
+  const result = spawnSync(checker, [name], { stdio: 'ignore' });
+  return result.status === 0;
+}
+
+export function detectPackageManager(root: string): PackageManager {
+  const preferred = preferredPackageManager(root);
+  const chosen = choosePackageManager(preferred, commandExists);
+  if (chosen !== preferred) {
+    process.stdout.write(`${preferred} is not installed. Using ${chosen} instead.\n`);
+  }
+  return chosen;
 }
 
 /** Expo app, or bare React Native that already has an android/ project. */
@@ -358,19 +390,80 @@ function assertNodeForInstall(dir: string): void {
   );
 }
 
+function workspacePackageIndex(root: string): Map<string, string> {
+  const index = new Map<string, string>();
+  const patterns = workspacePatterns(root);
+  if (!patterns) return index;
+  for (const pattern of patterns) {
+    for (const dir of expandWorkspacePattern(root, pattern)) {
+      const name = readPkg(dir)?.name;
+      if (name) index.set(name, dir);
+    }
+  }
+  return index;
+}
+
+/** npm cannot install `workspace:*`. Point those dependencies at the local package for this install only. */
+function packageJsonForNpm(pkg: PackageJson, fromDir: string, packages: Map<string, string>): PackageJson {
+  const rewrite = (deps?: Record<string, string>) => {
+    if (!deps) return deps;
+    const next = { ...deps };
+    for (const [name, spec] of Object.entries(next)) {
+      if (!spec.startsWith('workspace:')) continue;
+      const target = packages.get(name);
+      if (!target) continue;
+      let rel = toPosix(relative(fromDir, target)) || '.';
+      if (!rel.startsWith('.')) rel = `./${rel}`;
+      next[name] = `file:${rel}`;
+    }
+    return next;
+  };
+  return {
+    ...pkg,
+    dependencies: rewrite(pkg.dependencies),
+    devDependencies: rewrite(pkg.devDependencies),
+  };
+}
+
+function installDependencies(project: ResolvedProject): void {
+  if (project.packageManager === 'pnpm') {
+    process.stdout.write(`Running pnpm install in ${project.workspaceRoot}…\n`);
+    runCommand('pnpm', ['install'], project.workspaceRoot);
+    return;
+  }
+
+  const installDir = project.appDir;
+  const pkgPath = join(installDir, 'package.json');
+  const original = existsSync(pkgPath) ? readFileSync(pkgPath, 'utf8') : null;
+  const pkg = readPkg(installDir);
+  const rewritten = pkg
+    ? packageJsonForNpm(pkg, installDir, workspacePackageIndex(project.workspaceRoot))
+    : null;
+  const lockPath = join(installDir, 'package-lock.json');
+  const hadLock = existsSync(lockPath);
+  process.stdout.write(`Running ${project.packageManager} install in ${installDir}…\n`);
+  try {
+    if (rewritten && original != null && JSON.stringify(rewritten) !== JSON.stringify(pkg)) {
+      writeFileSync(pkgPath, `${JSON.stringify(rewritten, null, 2)}\n`);
+    }
+    const args = project.packageManager === 'npm' ? ['install', '--no-package-lock'] : ['install'];
+    runCommand(project.packageManager, args, installDir);
+  } finally {
+    if (original != null) writeFileSync(pkgPath, original);
+    if (!hadLock && existsSync(lockPath)) unlinkSync(lockPath);
+  }
+}
+
 export function ensureDependency(project: ResolvedProject, name: string): void {
   if (moduleInstalled(project.appDir, name)) return;
   assertNodeForInstall(project.workspaceRoot);
   assertNodeForInstall(project.appDir);
-  process.stdout.write(
-    `${name} is not installed. Running ${project.packageManager} install in ${project.workspaceRoot}…\n`,
-  );
-  const installArgs = project.packageManager === 'npm' ? ['install'] : ['install'];
-  runCommand(project.packageManager, installArgs, project.workspaceRoot);
+  process.stdout.write(`${name} is not installed. `);
+  installDependencies(project);
   if (!moduleInstalled(project.appDir, name)) {
     throw new Error(
       `${name} is listed in ${project.appDir} but is still not installed.\n` +
-        `Run \`${project.packageManager} install\` in ${project.workspaceRoot}, then retry.`,
+        `Run \`${project.packageManager} install\` in ${project.appDir}, then retry.`,
     );
   }
 }

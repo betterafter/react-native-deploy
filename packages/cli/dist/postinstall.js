@@ -2,7 +2,7 @@
 import {
   resolveConsumerRoot,
   scaffoldRndConfig
-} from "./chunk-GYYLW5XO.js";
+} from "./chunk-KXKQ3YHW.js";
 
 // src/postinstall.ts
 try {

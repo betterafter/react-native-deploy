@@ -10,7 +10,7 @@ import {
   runExpo,
   saveConfigFile,
   scaffoldRndConfig
-} from "./chunk-GYYLW5XO.js";
+} from "./chunk-KXKQ3YHW.js";
 
 // src/bin.ts
 import { Command } from "commander";

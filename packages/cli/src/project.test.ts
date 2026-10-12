@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nodeSatisfies, resolveProject } from './project.js';
+import { choosePackageManager, nodeSatisfies, resolveProject } from './project.js';
 
 const root = mkdtempSync(join(tmpdir(), 'rnd-project-'));
 mkdirSync(join(root, 'apps/mobile'), { recursive: true });
@@ -42,6 +42,10 @@ assert.equal(nodeSatisfies('22.19.0', '>=22.13.0'), true);
 assert.equal(nodeSatisfies('20.20.0', '>=22.13.0'), false);
 assert.equal(nodeSatisfies('22.13.0', '^22.0.0'), true);
 assert.equal(nodeSatisfies('23.0.0', '^22.0.0'), false);
+
+const onlyNpm = (name: 'npm' | 'yarn' | 'pnpm') => name === 'npm';
+assert.equal(choosePackageManager('pnpm', onlyNpm), 'npm');
+assert.equal(choosePackageManager('pnpm', (name) => name === 'pnpm'), 'pnpm');
 
 const real = resolveProject('/Users/singiyeol/100million');
 assert.equal(real.appDir, '/Users/singiyeol/100million/apps/mobile');

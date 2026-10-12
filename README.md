@@ -50,7 +50,7 @@ npm run dev                           # 로컬 확인 후 apps/web → Vercel �
 | `npx rnd init --with-scripts` | `package.json`에 `build` / `deploy` 스크립트까지 추가 |
 | `npx rnd --help` | 전체 도움말 |
 
-`rnd build`와 `rnd deploy`는 실행한 폴더가 앱이 아니어도 됩니다. npm, pnpm, Yarn 워크스페이스에서 Expo 또는 `android/`가 있는 React Native 앱이 하나면 그 앱을 사용합니다. 앱이 여러 개면 `rnd.config.json`에 `appDir`을 적거나 `npx rnd build --cwd <앱 폴더>`로 지정합니다. Expo 명령은 `npx expo`로 다른 버전을 받지 않고, 그 저장소의 패키지 매니저로 이미 설치된 Expo를 실행합니다. 의존성이 없으면 워크스페이스 루트에서 install을 먼저 합니다. 그 install이 요구하는 Node.js 버전이 지금 버전보다 높으면, 스택 대신 필요한 버전을 출력하고 멈춥니다.
+`rnd build`와 `rnd deploy`는 실행한 폴더가 앱이 아니어도 됩니다. npm, pnpm, Yarn 워크스페이스에서 Expo 또는 `android/`가 있는 React Native 앱이 하나면 그 앱을 사용합니다. 저장소가 pnpm을 쓰더라도 그 컴퓨터에 pnpm이 없으면 npm으로 설치합니다. 앱이 여러 개면 `rnd.config.json`에 `appDir`을 적거나 `npx rnd build --cwd <앱 폴더>`로 지정합니다. Expo 명령은 `npx expo`로 다른 버전을 받지 않고, 그 저장소의 패키지 매니저로 이미 설치된 Expo를 실행합니다. 의존성이 없으면 워크스페이스 루트에서 install을 먼저 합니다. 그 install이 요구하는 Node.js 버전이 지금 버전보다 높으면, 스택 대신 필요한 버전을 출력하고 멈춥니다.
 
 pnpm·Yarn, 그리고 `--ignore-scripts` 설치는 의존성의 `postinstall`을 실행하지 않습니다. 이 경우 `rnd.config.json`이 생기지 않으니 설치 후 `npx rnd init`을 한 번 실행하세요.
 

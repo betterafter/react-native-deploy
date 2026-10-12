@@ -26,7 +26,7 @@ function isPlaceholderApiUrl(url) {
 // src/project.ts
 import { spawnSync } from "child_process";
 import { createRequire } from "module";
-import { existsSync as existsSync2, readFileSync as readFileSync2, readdirSync, statSync } from "fs";
+import { existsSync as existsSync2, readFileSync as readFileSync2, readdirSync, statSync, unlinkSync, writeFileSync as writeFileSync2 } from "fs";
 import { dirname, join, relative, resolve as resolve2 } from "path";
 var SKIP_DIRS = /* @__PURE__ */ new Set([
   "node_modules",
@@ -122,7 +122,7 @@ function workspacePatterns(dir) {
 function workspaceRootOf(start) {
   return walkUp(start, (dir) => workspacePatterns(dir) !== null) ?? resolve2(start);
 }
-function detectPackageManager(root) {
+function preferredPackageManager(root) {
   const declared = readPkg(root)?.packageManager ?? "";
   if (declared.startsWith("pnpm")) return "pnpm";
   if (declared.startsWith("yarn")) return "yarn";
@@ -132,6 +132,31 @@ function detectPackageManager(root) {
   }
   if (existsSync2(join(root, "yarn.lock"))) return "yarn";
   return "npm";
+}
+var FALLBACK_ORDER = ["npm", "yarn", "pnpm"];
+function choosePackageManager(preferred, available) {
+  if (available(preferred)) return preferred;
+  const fallback = FALLBACK_ORDER.find((name) => name !== preferred && available(name));
+  if (!fallback) {
+    throw new Error(
+      `This project uses ${preferred}, but ${preferred} is not installed and npm/yarn/pnpm were not found on PATH.`
+    );
+  }
+  return fallback;
+}
+function commandExists(name) {
+  const checker = process.platform === "win32" ? "where.exe" : "which";
+  const result = spawnSync(checker, [name], { stdio: "ignore" });
+  return result.status === 0;
+}
+function detectPackageManager(root) {
+  const preferred = preferredPackageManager(root);
+  const chosen = choosePackageManager(preferred, commandExists);
+  if (chosen !== preferred) {
+    process.stdout.write(`${preferred} is not installed. Using ${chosen} instead.
+`);
+  }
+  return chosen;
 }
 function appKind(dir) {
   const deps = depsOf(readPkg(dir));
@@ -305,20 +330,76 @@ rnd itself runs on Node.js 20+, but this project's package manager does not.
 Switch Node.js, then run the command again.`
   );
 }
+function workspacePackageIndex(root) {
+  const index = /* @__PURE__ */ new Map();
+  const patterns = workspacePatterns(root);
+  if (!patterns) return index;
+  for (const pattern of patterns) {
+    for (const dir of expandWorkspacePattern(root, pattern)) {
+      const name = readPkg(dir)?.name;
+      if (name) index.set(name, dir);
+    }
+  }
+  return index;
+}
+function packageJsonForNpm(pkg, fromDir, packages) {
+  const rewrite = (deps) => {
+    if (!deps) return deps;
+    const next = { ...deps };
+    for (const [name, spec] of Object.entries(next)) {
+      if (!spec.startsWith("workspace:")) continue;
+      const target = packages.get(name);
+      if (!target) continue;
+      let rel = toPosix(relative(fromDir, target)) || ".";
+      if (!rel.startsWith(".")) rel = `./${rel}`;
+      next[name] = `file:${rel}`;
+    }
+    return next;
+  };
+  return {
+    ...pkg,
+    dependencies: rewrite(pkg.dependencies),
+    devDependencies: rewrite(pkg.devDependencies)
+  };
+}
+function installDependencies(project) {
+  if (project.packageManager === "pnpm") {
+    process.stdout.write(`Running pnpm install in ${project.workspaceRoot}\u2026
+`);
+    runCommand("pnpm", ["install"], project.workspaceRoot);
+    return;
+  }
+  const installDir = project.appDir;
+  const pkgPath = join(installDir, "package.json");
+  const original = existsSync2(pkgPath) ? readFileSync2(pkgPath, "utf8") : null;
+  const pkg = readPkg(installDir);
+  const rewritten = pkg ? packageJsonForNpm(pkg, installDir, workspacePackageIndex(project.workspaceRoot)) : null;
+  const lockPath = join(installDir, "package-lock.json");
+  const hadLock = existsSync2(lockPath);
+  process.stdout.write(`Running ${project.packageManager} install in ${installDir}\u2026
+`);
+  try {
+    if (rewritten && original != null && JSON.stringify(rewritten) !== JSON.stringify(pkg)) {
+      writeFileSync2(pkgPath, `${JSON.stringify(rewritten, null, 2)}
+`);
+    }
+    const args = project.packageManager === "npm" ? ["install", "--no-package-lock"] : ["install"];
+    runCommand(project.packageManager, args, installDir);
+  } finally {
+    if (original != null) writeFileSync2(pkgPath, original);
+    if (!hadLock && existsSync2(lockPath)) unlinkSync(lockPath);
+  }
+}
 function ensureDependency(project, name) {
   if (moduleInstalled(project.appDir, name)) return;
   assertNodeForInstall(project.workspaceRoot);
   assertNodeForInstall(project.appDir);
-  process.stdout.write(
-    `${name} is not installed. Running ${project.packageManager} install in ${project.workspaceRoot}\u2026
-`
-  );
-  const installArgs = project.packageManager === "npm" ? ["install"] : ["install"];
-  runCommand(project.packageManager, installArgs, project.workspaceRoot);
+  process.stdout.write(`${name} is not installed. `);
+  installDependencies(project);
   if (!moduleInstalled(project.appDir, name)) {
     throw new Error(
       `${name} is listed in ${project.appDir} but is still not installed.
-Run \`${project.packageManager} install\` in ${project.workspaceRoot}, then retry.`
+Run \`${project.packageManager} install\` in ${project.appDir}, then retry.`
     );
   }
 }
@@ -352,7 +433,7 @@ function rememberAndroidArtifact(project, apk) {
 }
 
 // src/init-config.ts
-import { existsSync as existsSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync2 } from "fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3, writeFileSync as writeFileSync3 } from "fs";
 import { join as join2, relative as relative2, resolve as resolve3 } from "path";
 function readJson(path) {
   if (!existsSync3(path)) return null;
@@ -413,7 +494,7 @@ function scaffoldRndConfig(opts) {
     export: discovered ? `${discovered}/dist` : "./dist",
     ...expoApp || discovered ? { expoExport: true } : { expoExport: false }
   };
-  writeFileSync2(configPath2, `${JSON.stringify(config, null, 2)}
+  writeFileSync3(configPath2, `${JSON.stringify(config, null, 2)}
 `, "utf8");
   if (opts.addScripts && pkg) {
     const scripts = { ...pkg.scripts ?? {} };
@@ -427,7 +508,7 @@ function scaffoldRndConfig(opts) {
       changed = true;
     }
     if (changed) {
-      writeFileSync2(
+      writeFileSync3(
         pkgPath,
         `${JSON.stringify({ ...pkg, scripts }, null, 2)}
 `,
