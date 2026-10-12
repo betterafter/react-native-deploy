@@ -1,48 +1,22 @@
-import { spawnSync } from 'node:child_process';
 import {
   copyFileSync,
   existsSync,
   mkdirSync,
-  readFileSync,
   readdirSync,
   statSync,
 } from 'node:fs';
 import { join, resolve } from 'node:path';
+import {
+  rememberAndroidArtifact,
+  resolveProject,
+  runCommand,
+  runExpo,
+} from './project.js';
 
 export type BuildResult = {
   androidApk?: string;
   iosIpa?: string;
 };
-
-function run(command: string, args: string[], cwd: string): void {
-  process.stdout.write(`$ ${command} ${args.join(' ')}\n`);
-  const result = spawnSync(command, args, {
-    cwd,
-    stdio: 'inherit',
-    shell: process.platform === 'win32',
-    env: process.env,
-  });
-  if (result.error) {
-    throw new Error(`${command} failed: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    throw new Error(`${command} exited with code ${result.status ?? 1}`);
-  }
-}
-
-function hasExpo(cwd: string): boolean {
-  const pkgPath = join(cwd, 'package.json');
-  if (!existsSync(pkgPath)) return false;
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    return Boolean(pkg.dependencies?.expo || pkg.devDependencies?.expo);
-  } catch {
-    return false;
-  }
-}
 
 function findReleaseApk(androidDir: string): string | null {
   const releaseDir = join(androidDir, 'app/build/outputs/apk/release');
@@ -62,32 +36,33 @@ function findReleaseApk(androidDir: string): string | null {
  */
 export function runRndBuild(opts: {
   cwd?: string;
+  /** Explicit app directory (--cwd). Omit to discover an Expo/RN app in this workspace. */
+  appDir?: string;
   platform?: 'android' | 'ios' | 'all';
 }): BuildResult {
-  const cwd = opts.cwd ?? process.cwd();
+  const project = resolveProject(opts.cwd ?? process.cwd(), { appDir: opts.appDir });
+  const cwd = project.appDir;
   const platform = opts.platform ?? 'android';
   const out: BuildResult = {};
+  process.stdout.write(`App → ${cwd}\n`);
+  process.stdout.write(`Package manager → ${project.packageManager}\n`);
 
   if (platform === 'android' || platform === 'all') {
     const androidDir = join(cwd, 'android');
-    if (!existsSync(androidDir) && hasExpo(cwd)) {
+    if (!existsSync(androidDir) && project.hasExpo) {
       process.stdout.write('No android/ folder — running expo prebuild…\n');
-      run(
-        'npx',
-        ['expo', 'prebuild', '--platform', 'android', '--no-install'],
-        cwd,
-      );
+      runExpo(project, ['prebuild', '--platform', 'android', '--no-install']);
     }
     if (!existsSync(androidDir)) {
       throw new Error(
-        'No android/ project. Expo apps need a successful `expo prebuild`, ' +
+        `No android/ project in ${cwd}. Expo apps need a successful prebuild, ` +
           'or add a native android/ folder.',
       );
     }
 
     const gradlew = process.platform === 'win32' ? 'gradlew.bat' : './gradlew';
     process.stdout.write('Building Android release APK…\n');
-    run(
+    runCommand(
       gradlew,
       ['assembleRelease', '-PreactNativeArchitectures=arm64-v8a'],
       androidDir,
@@ -114,6 +89,7 @@ export function runRndBuild(opts: {
       out.androidApk = apk;
     }
     process.stdout.write(`Android APK → ${out.androidApk}\n`);
+    rememberAndroidArtifact(project, out.androidApk);
   }
 
   if (platform === 'ios' || platform === 'all') {

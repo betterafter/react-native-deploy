@@ -50,6 +50,8 @@ npm run dev                           # 로컬 확인 후 apps/web → Vercel �
 | `npx rnd init --with-scripts` | `package.json`에 `build` / `deploy` 스크립트까지 추가 |
 | `npx rnd --help` | 전체 도움말 |
 
+`rnd build`와 `rnd deploy`는 실행한 폴더가 앱이 아니어도 됩니다. npm, pnpm, Yarn 워크스페이스에서 Expo 또는 `android/`가 있는 React Native 앱이 하나면 그 앱을 사용합니다. 앱이 여러 개면 `rnd.config.json`에 `appDir`을 적거나 `npx rnd build --cwd <앱 폴더>`로 지정합니다. Expo 명령은 `npx expo`로 다른 버전을 받지 않고, 그 저장소의 패키지 매니저로 이미 설치된 Expo를 실행합니다. 의존성이 없으면 워크스페이스 루트에서 install을 먼저 합니다. 그 install이 요구하는 Node.js 버전이 지금 버전보다 높으면, 스택 대신 필요한 버전을 출력하고 멈춥니다.
+
 pnpm·Yarn, 그리고 `--ignore-scripts` 설치는 의존성의 `postinstall`을 실행하지 않습니다. 이 경우 `rnd.config.json`이 생기지 않으니 설치 후 `npx rnd init`을 한 번 실행하세요.
 
 `rnd init`은 기본적으로 `rnd.config.json`만 만들고 `package.json`은 건드리지 않습니다. 모노레포 루트에서는 `build` / `deploy`가 보통 워크스페이스로 분기하므로, 덮어쓰기를 원할 때만 `--with-scripts`를 붙이세요.
@@ -70,7 +72,8 @@ pnpm·Yarn, 그리고 `--ignore-scripts` 설치는 의존성의 `postinstall`을
 
 | 명령 | |
 |------|--|
-| `npx rnd build` | Android release APK (Expo면 prebuild) |
+| `npx rnd build` | Android release APK. 모노레포면 Expo/RN 앱 폴더를 찾고, 그 프로젝트의 npm·pnpm·yarn으로 prebuild |
+| `npx rnd build --cwd apps/mobile` | 앱이 여러 개일 때 폴더를 지정 |
 | `npx rnd deploy -m "…"` | 파일 + 샌드박스 QR |
 | `npx rnd deploy --export-only` | 샌드박스만 |
 | `npx rnd deploy --skip-export` | 파일만 |

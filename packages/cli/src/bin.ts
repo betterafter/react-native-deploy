@@ -1,6 +1,5 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
-import { spawnSync } from 'node:child_process';
 import { createInterface } from 'node:readline/promises';
 import { stdin as input, stdout as output } from 'node:process';
 import { existsSync, readFileSync, statSync } from 'node:fs';
@@ -22,6 +21,7 @@ import {
 } from './credentials.js';
 import { deployExport } from './export-deploy.js';
 import { resolveConsumerRoot, scaffoldRndConfig } from './init-config.js';
+import { resolveProject, runExpo, type ResolvedProject } from './project.js';
 import { normalizeBaseUrl } from './url.js';
 
 type Platform = 'ios' | 'android';
@@ -191,54 +191,57 @@ function addDeployOptions(cmd: Command) {
     );
 }
 
-/** Returns artifact path, or null when none is available (unless required). */
+/** Returns an absolute artifact path, or null when none is available (unless required). */
 function resolveArtifact(
   cfg: RndConfig,
   platform: string | undefined,
   fileFlag: string | undefined,
   required: boolean,
+  project: ResolvedProject,
 ): string | null {
-  if (fileFlag) return fileFlag;
+  if (fileFlag) return resolve(project.configDir, fileFlag);
+
+  const android = firstExisting([
+    cfg.artifact?.android ? resolve(project.configDir, cfg.artifact.android) : undefined,
+    cfg.artifact?.android ? resolve(project.appDir, cfg.artifact.android) : undefined,
+    resolve(project.appDir, 'android/app/build/outputs/apk/release/app-release.apk'),
+  ]);
+  const ios = firstExisting([
+    cfg.artifact?.ios ? resolve(project.configDir, cfg.artifact.ios) : undefined,
+    cfg.artifact?.ios ? resolve(project.appDir, cfg.artifact.ios) : undefined,
+    resolve(project.appDir, 'build/App.ipa'),
+    resolve(project.configDir, 'build/App.ipa'),
+  ]);
+
   if (platform === 'android') {
-    if (!cfg.artifact?.android) {
-      if (!required) return null;
-      throw new Error('No Android artifact. Set artifact.android in rnd.config.json or pass -f.');
-    }
-    const path = resolve(process.cwd(), cfg.artifact.android);
-    if (!existsSync(path)) {
-      if (!required) return null;
-      throw new Error(`Android artifact not found: ${cfg.artifact.android}`);
-    }
-    return cfg.artifact.android;
+    if (android) return android;
+    if (!required) return null;
+    throw new Error('No Android artifact. Run `npx rnd build` or pass -f ./path/to/app.apk.');
   }
   if (platform === 'ios') {
-    if (!cfg.artifact?.ios) {
-      if (!required) return null;
-      throw new Error('No iOS artifact. Set artifact.ios in rnd.config.json or pass -f.');
-    }
-    const path = resolve(process.cwd(), cfg.artifact.ios);
-    if (!existsSync(path)) {
-      if (!required) return null;
-      throw new Error(`iOS artifact not found: ${cfg.artifact.ios}`);
-    }
-    return cfg.artifact.ios;
+    if (ios) return ios;
+    if (!required) return null;
+    throw new Error('No iOS artifact. Set artifact.ios in rnd.config.json or pass -f.');
   }
 
-  const ios = cfg.artifact?.ios;
-  const android = cfg.artifact?.android;
-  const iosOk = Boolean(ios && existsSync(resolve(process.cwd(), ios)));
-  const androidOk = Boolean(android && existsSync(resolve(process.cwd(), android)));
-  if (iosOk && androidOk) {
+  if (ios && android) {
     throw new Error('Both IPA and APK exist. Pass --platform ios or --platform android.');
   }
-  if (androidOk && android) return android;
-  if (iosOk && ios) return ios;
+  if (android) return android;
+  if (ios) return ios;
   if (!required) return null;
   throw new Error(
     'No artifact file found. Run:\n' +
       '  npx rnd build\n' +
       'then `npx rnd deploy`, or pass -f ./path/to/app.apk',
   );
+}
+
+function firstExisting(paths: Array<string | undefined>): string | null {
+  for (const path of paths) {
+    if (path && existsSync(path)) return path;
+  }
+  return null;
 }
 
 function exportDirPath(cfg: RndConfig, exportOpt: string | boolean | undefined): string {
@@ -249,11 +252,14 @@ function resolveExportDir(
   cfg: RndConfig,
   exportOpt: string | boolean | undefined,
   required: boolean,
+  project: ResolvedProject,
 ): string | null {
   if (exportOpt === false) return null;
   const dir = exportDirPath(cfg, exportOpt);
-  const abs = resolve(process.cwd(), dir);
-  if (existsSync(abs)) return dir;
+  const fromConfig = resolve(project.configDir, dir);
+  const fromApp = resolve(project.appDir, dir);
+  if (existsSync(fromConfig)) return fromConfig;
+  if (existsSync(fromApp)) return fromApp;
   if (required) {
     throw new Error(
       `Export directory not found: ${dir}\n` +
@@ -263,53 +269,26 @@ function resolveExportDir(
   return null;
 }
 
-function projectHasExpo(): boolean {
-  const pkgPath = resolve(process.cwd(), 'package.json');
-  if (!existsSync(pkgPath)) return false;
-  try {
-    const pkg = JSON.parse(readFileSync(pkgPath, 'utf8')) as {
-      dependencies?: Record<string, string>;
-      devDependencies?: Record<string, string>;
-    };
-    return Boolean(pkg.dependencies?.expo || pkg.devDependencies?.expo);
-  } catch {
-    return false;
-  }
-}
-
 function shouldRunExpoExport(
   cfg: RndConfig,
   opts: Record<string, string | boolean | undefined>,
+  project: ResolvedProject,
 ): boolean {
   if (opts.skipExpoExport === true) return false;
   if (cfg.expoExport === false) return false;
   if (cfg.expoExport === true) return true;
-  return projectHasExpo();
+  return project.hasExpo;
 }
 
-function runExpoExport(outputDir: string) {
-  const abs = resolve(process.cwd(), outputDir);
-  process.stdout.write(`Running expo export → ${outputDir}…\n`);
-  const result = spawnSync(
-    'npx',
-    ['expo', 'export', '--output-dir', abs],
-    {
-      cwd: process.cwd(),
-      stdio: 'inherit',
-      shell: process.platform === 'win32',
-      env: process.env,
-    },
-  );
-  if (result.error) {
-    throw new Error(`Failed to run expo export: ${result.error.message}`);
-  }
-  if (result.status !== 0) {
-    throw new Error(`expo export failed (exit ${result.status ?? 1})`);
-  }
+function runExpoExport(project: ResolvedProject, outputDir: string) {
+  const abs = resolve(project.configDir, outputDir);
+  process.stdout.write(`Running expo export → ${abs}…\n`);
+  runExpo(project, ['export', '--output-dir', abs]);
 }
 
 async function runDeploy(opts: Record<string, string | boolean | undefined>) {
-  const cfg = loadConfig();
+  const project = resolveProject(process.cwd());
+  const cfg = loadConfigFile(project.configDir);
   const exportOnly = opts.exportOnly === true;
   const skipExport = opts.skipExport === true;
   const token = resolveToken({
@@ -343,6 +322,7 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
       typeof opts.platform === 'string' ? opts.platform : undefined,
       typeof opts.file === 'string' ? opts.file : undefined,
       /* required */ Boolean(opts.file || opts.platform || skipExport),
+      project,
     );
     if (file) {
       await deployFile({
@@ -368,14 +348,15 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
   if (!skipExport) {
     const exportOpt = exportOnly ? (opts.export ?? true) : opts.export;
     const dirPath = exportDirPath(cfg, exportOpt);
-    if (shouldRunExpoExport(cfg, opts)) {
-      runExpoExport(dirPath);
+    if (shouldRunExpoExport(cfg, opts, project)) {
+      runExpoExport(project, resolve(project.configDir, dirPath));
     }
 
     const dir = resolveExportDir(
       cfg,
       exportOpt,
-      /* required */ exportOnly || shouldRunExpoExport(cfg, opts) || typeof opts.export === 'string',
+      /* required */ exportOnly || shouldRunExpoExport(cfg, opts, project) || typeof opts.export === 'string',
+      project,
     );
     if (dir) {
       await deployExport({
@@ -411,14 +392,17 @@ program
     'Build install artifact (Android release APK by default; Expo prebuild if needed)',
   )
   .option('-p, --platform <platform>', 'android | ios | all', 'android')
-  .option('--cwd <path>', 'Project root (default: current directory)')
+  .option('--cwd <path>', 'App directory. Default: this folder, or the Expo/RN app in a workspace')
   .action((opts: { platform?: string; cwd?: string }) => {
     const platform = (opts.platform ?? 'android') as 'android' | 'ios' | 'all';
     if (platform !== 'android' && platform !== 'ios' && platform !== 'all') {
       throw new Error('--platform must be android | ios | all');
     }
-    const cwd = resolve(opts.cwd ?? process.cwd());
-    const result = runRndBuild({ cwd, platform });
+    const result = runRndBuild({
+      cwd: process.cwd(),
+      appDir: opts.cwd ? resolve(process.cwd(), opts.cwd) : undefined,
+      platform,
+    });
     if (result.androidApk) {
       process.stdout.write(
         `\nReady for install QR. Next:\n  npx rnd deploy -m "메모"\n`,

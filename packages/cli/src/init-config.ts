@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, relative, resolve } from 'node:path';
+import { resolveProject, toPosix } from './project.js';
 
 export type ScaffoldResult = {
   path: string;
@@ -94,6 +95,7 @@ export function scaffoldRndConfig(opts: {
   const appJson = readJson<AppJson>(join(cwd, 'app.json'));
   const expo = appJson?.expo;
   const expoApp = hasExpo(pkg);
+  const discovered = discoverNestedApp(cwd);
 
   const appId =
     slugify(expo?.slug || expo?.name || pkg?.name || 'my-app') || 'my-app';
@@ -107,12 +109,15 @@ export function scaffoldRndConfig(opts: {
     bundleId,
     /** Replace with your hosted console URL (Vercel etc.) */
     apiUrl: opts.apiUrl?.trim() || 'https://YOUR_CONSOLE_URL',
+    ...(discovered ? { appDir: discovered } : {}),
     artifact: {
       ios: './build/App.ipa',
-      android: './android/app/build/outputs/apk/release/app-release.apk',
+      android: discovered
+        ? `${discovered}/android/app/build/outputs/apk/release/app-release.apk`
+        : './android/app/build/outputs/apk/release/app-release.apk',
     },
-    export: './dist',
-    ...(expoApp ? { expoExport: true } : { expoExport: false }),
+    export: discovered ? `${discovered}/dist` : './dist',
+    ...(expoApp || discovered ? { expoExport: true } : { expoExport: false }),
   };
 
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
@@ -140,4 +145,15 @@ export function scaffoldRndConfig(opts: {
   }
 
   return { path: configPath, created: true, skipped: false };
+}
+
+/** Relative app path when the Expo/RN app is not the folder that holds rnd.config.json. */
+function discoverNestedApp(cwd: string): string | null {
+  try {
+    const appDir = resolveProject(cwd).appDir;
+    if (resolve(appDir) === resolve(cwd)) return null;
+    return toPosix(relative(cwd, appDir));
+  } catch {
+    return null;
+  }
 }

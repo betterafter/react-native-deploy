@@ -10,6 +10,8 @@ export type RndConfig = {
     android?: string;
   };
   export?: string;
+  /** App package, relative to this file. Set in monorepos. Omit when the app is this folder. */
+  appDir?: string;
   expoExport?: boolean;
 };
 
