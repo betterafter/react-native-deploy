@@ -10,6 +10,8 @@ npx rnd build              # 설치용 APK
 npx rnd deploy -m "홈 화면" # 파일 설치 QR + 샌드박스 QR
 ```
 
+`npx`는 Node를 설치하면 같이 오는 실행기입니다. 프로젝트 의존성을 설치하는 npm·pnpm·Yarn과 역할이 다릅니다. `npx github:... install`은 CLI를 받아서 `install`만 한 번 실행하고, 그 `install`이 이 컴퓨터에 있는 npm, pnpm, Yarn 중 하나로 앱 의존성을 설치합니다. pnpm으로 적힌 저장소라도 pnpm이 없으면 npm을 씁니다.
+
 `deploy` 기본 = 파일 설치 QR + 샌드박스 QR. `--export-only` / `--skip-export`로 한쪽만 가능.
 
 ---
@@ -37,7 +39,17 @@ npm run dev                           # 로컬 확인 후 apps/web → Vercel �
 
 ## 앱 개발자
 
-개발자는 **콘솔 URL** + **배포 토큰**만 있으면 됩니다.
+개발자는 **콘솔 URL** + **배포 토큰**만 있으면 됩니다. Node.js만 있으면 되고, pnpm이나 Yarn을 미리 설치할 필요는 없습니다.
+
+### npx와 패키지 매니저
+
+| | 하는 일 | 언제 있나 |
+|--|--|--|
+| `npx` | 패키지를 받아 그 안의 명령을 실행 | Node와 함께 설치됨 |
+| `npm` | `package.json` 의존성을 `node_modules`에 설치 | Node와 함께 설치됨 |
+| `pnpm`, `Yarn` | npm과 같은 설치. 저장 방식만 다름 | 따로 설치한 컴퓨터에만 있음 |
+
+첫 명령이 `npx`인 이유는, 팀원 PC에 pnpm이 없어도 Node만 있으면 같은 명령을 칠 수 있기 때문입니다. 앱 패키지를 설치하는 일은 그 다음 `rnd install`이 맡고, 그 컴퓨터에 실제로 있는 패키지 매니저를 고릅니다.
 
 ### 설치 · 설정
 
@@ -55,7 +67,7 @@ npm run dev                           # 로컬 확인 후 apps/web → Vercel �
 
 `rnd init`은 기본적으로 `rnd.config.json`만 만들고 `package.json`은 건드리지 않습니다. 모노레포 루트에서는 `build` / `deploy`가 보통 워크스페이스로 분기하므로, 덮어쓰기를 원할 때만 `--with-scripts`를 붙이세요.
 
-버전을 고정하려면 태그를 붙여 설치합니다: `npm i -D github:betterafter/react-native-deploy#v0.1.0`
+버전을 고정하려면 태그를 붙입니다: `npx github:betterafter/react-native-deploy#v0.1.0 install`
 
 `rnd.config.json` — `apiUrl`만 필수(`https://` 생략 OK). `artifact` / `export`는 경로가 다를 때만 수정.
 
