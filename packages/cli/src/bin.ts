@@ -325,13 +325,19 @@ async function runDeploy(opts: Record<string, string | boolean | undefined>) {
 
   // Default: install file QR + sandbox QR (Expo export)
   if (!exportOnly) {
-    const file = resolveArtifact(
+    const requestedPlatform = typeof opts.platform === 'string' ? opts.platform : undefined;
+    let file = resolveArtifact(
       cfg,
-      typeof opts.platform === 'string' ? opts.platform : undefined,
+      requestedPlatform,
       typeof opts.file === 'string' ? opts.file : undefined,
-      /* required */ Boolean(opts.file || opts.platform || skipExport),
+      /* required */ Boolean(opts.file || requestedPlatform === 'ios' || skipExport),
       project,
     );
+    if (!file && !opts.file && requestedPlatform !== 'ios') {
+      process.stdout.write('No APK yet. Looking for the Android project and building it…\n');
+      const built = runRndBuild({ cwd: process.cwd(), platform: 'android' });
+      file = built.androidApk ?? resolveArtifact(cfg, 'android', undefined, true, project);
+    }
     if (file) {
       await deployFile({
         file,

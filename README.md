@@ -74,7 +74,7 @@ pnpm·Yarn, 그리고 `--ignore-scripts` 설치는 의존성의 `postinstall`을
 |------|--|
 | `npx rnd build` | Android release APK. 모노레포면 Expo/RN 앱 폴더를 찾고, 그 프로젝트의 npm·pnpm·yarn으로 prebuild |
 | `npx rnd build --cwd apps/mobile` | 앱이 여러 개일 때 폴더를 지정 |
-| `npx rnd deploy -m "…"` | 파일 + 샌드박스 QR |
+| `npx rnd deploy -m "…"` | APK가 없으면 Android를 찾아 빌드한 뒤, 파일 + 샌드박스 QR |
 | `npx rnd deploy --export-only` | 샌드박스만 |
 | `npx rnd deploy --skip-export` | 파일만 |
 | `npx rnd open` | 콘솔 URL 출력 |

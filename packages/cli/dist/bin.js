@@ -581,14 +581,20 @@ async function runDeploy(opts) {
   const bundleId = (typeof opts.bundleId === "string" ? opts.bundleId : void 0) ?? cfg.bundleId ?? process.env.RND_BUNDLE_ID;
   let uploaded = 0;
   if (!exportOnly) {
-    const file = resolveArtifact(
+    const requestedPlatform = typeof opts.platform === "string" ? opts.platform : void 0;
+    let file = resolveArtifact(
       cfg,
-      typeof opts.platform === "string" ? opts.platform : void 0,
+      requestedPlatform,
       typeof opts.file === "string" ? opts.file : void 0,
       /* required */
-      Boolean(opts.file || opts.platform || skipExport),
+      Boolean(opts.file || requestedPlatform === "ios" || skipExport),
       project
     );
+    if (!file && !opts.file && requestedPlatform !== "ios") {
+      process.stdout.write("No APK yet. Looking for the Android project and building it\u2026\n");
+      const built = runRndBuild({ cwd: process.cwd(), platform: "android" });
+      file = built.androidApk ?? resolveArtifact(cfg, "android", void 0, true, project);
+    }
     if (file) {
       await deployFile({
         file,
