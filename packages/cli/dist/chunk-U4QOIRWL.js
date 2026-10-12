@@ -362,6 +362,45 @@ function packageJsonForNpm(pkg, fromDir, packages) {
     devDependencies: rewrite(pkg.devDependencies)
   };
 }
+var RND_GIT = "github:betterafter/react-native-deploy";
+function declaresRnd(dir) {
+  const pkg = readPkg(dir);
+  return Boolean(pkg?.dependencies?.rnd || pkg?.devDependencies?.rnd);
+}
+function ensureRndDeclared(project) {
+  if (declaresRnd(project.workspaceRoot) || declaresRnd(project.appDir)) return;
+  const target = existsSync2(join(project.workspaceRoot, "package.json")) ? project.workspaceRoot : project.appDir;
+  const pkg = readPkg(target);
+  if (!pkg) return;
+  writeFileSync2(
+    join(target, "package.json"),
+    `${JSON.stringify({ ...pkg, devDependencies: { ...pkg.devDependencies, rnd: RND_GIT } }, null, 2)}
+`
+  );
+  process.stdout.write(`Added rnd to ${join(target, "package.json")}
+`);
+}
+function installTree(dir, manager, packages, ignoreScripts) {
+  const pkgPath = join(dir, "package.json");
+  if (!existsSync2(pkgPath)) return;
+  const original = readFileSync2(pkgPath, "utf8");
+  const pkg = readPkg(dir);
+  const rewritten = pkg ? packageJsonForNpm(pkg, dir, packages) : null;
+  const changed = Boolean(rewritten && pkg && JSON.stringify(rewritten) !== JSON.stringify(pkg));
+  const lockPath = join(dir, "package-lock.json");
+  const hadLock = existsSync2(lockPath);
+  process.stdout.write(`Running ${manager} install in ${dir}\u2026
+`);
+  try {
+    if (changed && rewritten) writeFileSync2(pkgPath, `${JSON.stringify(rewritten, null, 2)}
+`);
+    const args = manager === "npm" ? ["install", "--no-package-lock", ...ignoreScripts ? ["--ignore-scripts"] : []] : ["install"];
+    runCommand(manager, args, dir);
+  } finally {
+    if (changed) writeFileSync2(pkgPath, original);
+    if (!hadLock && existsSync2(lockPath)) unlinkSync(lockPath);
+  }
+}
 function installDependencies(project) {
   if (project.packageManager === "pnpm") {
     process.stdout.write(`Running pnpm install in ${project.workspaceRoot}\u2026
@@ -369,26 +408,26 @@ function installDependencies(project) {
     runCommand("pnpm", ["install"], project.workspaceRoot);
     return;
   }
-  const installDir = project.appDir;
-  const pkgPath = join(installDir, "package.json");
-  const original = existsSync2(pkgPath) ? readFileSync2(pkgPath, "utf8") : null;
-  const pkg = readPkg(installDir);
-  const rewritten = pkg ? packageJsonForNpm(pkg, installDir, workspacePackageIndex(project.workspaceRoot)) : null;
-  const lockPath = join(installDir, "package-lock.json");
-  const hadLock = existsSync2(lockPath);
-  process.stdout.write(`Running ${project.packageManager} install in ${installDir}\u2026
-`);
-  try {
-    if (rewritten && original != null && JSON.stringify(rewritten) !== JSON.stringify(pkg)) {
-      writeFileSync2(pkgPath, `${JSON.stringify(rewritten, null, 2)}
-`);
-    }
-    const args = project.packageManager === "npm" ? ["install", "--no-package-lock"] : ["install"];
-    runCommand(project.packageManager, args, installDir);
-  } finally {
-    if (original != null) writeFileSync2(pkgPath, original);
-    if (!hadLock && existsSync2(lockPath)) unlinkSync(lockPath);
-  }
+  const packages = workspacePackageIndex(project.workspaceRoot);
+  const separateApp = resolve2(project.appDir) !== resolve2(project.workspaceRoot);
+  installTree(project.workspaceRoot, project.packageManager, packages, separateApp);
+  if (separateApp) installTree(project.appDir, project.packageManager, packages, false);
+}
+function installProject(project) {
+  assertNodeForInstall(project.workspaceRoot);
+  assertNodeForInstall(project.appDir);
+  ensureRndDeclared(project);
+  installDependencies(project);
+}
+function appReady(project) {
+  if (!existsSync2(join(project.appDir, "node_modules"))) return false;
+  if (project.hasExpo && !moduleInstalled(project.appDir, "expo")) return false;
+  return true;
+}
+function ensureInstalled(project) {
+  if (appReady(project)) return;
+  process.stdout.write("Dependencies are not installed. ");
+  installProject(project);
 }
 function ensureDependency(project, name) {
   if (moduleInstalled(project.appDir, name)) return;
@@ -535,6 +574,8 @@ export {
   isPlaceholderApiUrl,
   resolveProject,
   runCommand,
+  installProject,
+  ensureInstalled,
   runExpo,
   rememberAndroidArtifact,
   resolveConsumerRoot,

@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 import {
   configPath,
+  ensureInstalled,
+  installProject,
   isPlaceholderApiUrl,
   loadConfigFile,
   rememberAndroidArtifact,
@@ -10,7 +12,7 @@ import {
   runExpo,
   saveConfigFile,
   scaffoldRndConfig
-} from "./chunk-KXKQ3YHW.js";
+} from "./chunk-U4QOIRWL.js";
 
 // src/bin.ts
 import { Command } from "commander";
@@ -43,6 +45,7 @@ function runRndBuild(opts) {
 `);
   process.stdout.write(`Package manager \u2192 ${project.packageManager}
 `);
+  ensureInstalled(project);
   if (platform === "android" || platform === "all") {
     const androidDir = join(cwd, "android");
     if (!existsSync(androidDir) && project.hasExpo) {
@@ -682,6 +685,31 @@ addDeployOptions(
   program.command("upload").description("Alias of `rnd deploy`")
 ).action(async (opts) => {
   await runDeploy(opts);
+});
+program.command("install").description("Install app dependencies with npm, pnpm, or Yarn \u2014 whichever is installed").option("--cwd <path>", "App directory. Default: this folder, or the Expo/RN app in a workspace").action((opts) => {
+  const project = resolveProject(process.cwd(), {
+    appDir: opts.cwd ? resolve3(process.cwd(), opts.cwd) : void 0
+  });
+  process.stdout.write(`App \u2192 ${project.appDir}
+`);
+  process.stdout.write(`Package manager \u2192 ${project.packageManager}
+`);
+  installProject(project);
+  const hasConfig = [project.configDir, project.appDir].some(
+    (dir) => existsSync3(resolve3(dir, "rnd.config.json"))
+  );
+  if (!hasConfig) {
+    const result = scaffoldRndConfig({ cwd: project.configDir });
+    if (result.created) process.stdout.write(`Created ${result.path}
+`);
+  }
+  process.stdout.write(
+    `Next:
+  npx rnd token add
+  npx rnd build
+  npx rnd deploy -m "\uBA54\uBAA8"
+`
+  );
 });
 program.command("init").description("Create rnd.config.json from package.json / app.json (safe: no overwrite)").option("--force", "Overwrite existing rnd.config.json").option("--api-url <url>", "Console base URL to write into config").option("--cwd <path>", "Project root (default: current directory)").option(
   "--with-scripts",

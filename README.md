@@ -4,8 +4,7 @@
 (스토어 출시용이 아니라 **팀 내부 테스트 배포**용입니다.)
 
 ```bash
-npm i -D github:betterafter/react-native-deploy
-npx rnd init               # rnd.config.json (npm 설치 시 자동 생성되므로 생략 가능)
+npx github:betterafter/react-native-deploy install
 npx rnd token add          # 토큰 + 콘솔 URL
 npx rnd build              # 설치용 APK
 npx rnd deploy -m "홈 화면" # 파일 설치 QR + 샌드박스 QR
@@ -44,15 +43,15 @@ npm run dev                           # 로컬 확인 후 apps/web → Vercel �
 
 | 명령 | |
 |------|--|
-| `npm i -D github:betterafter/react-native-deploy` | CLI 설치 (+ config 자동 생성) |
-| `pnpm add -D github:betterafter/react-native-deploy` | CLI 설치 (config는 `rnd init`으로) |
-| `npx rnd init` / `--force` / `--api-url …` | config 수동 생성·덮어쓰기 |
+| `npx github:betterafter/react-native-deploy install` | 의존성 설치 + config. npm, pnpm, Yarn 중 설치된 것을 사용 |
+| `npx rnd install` | CLI가 이미 있을 때 같은 설치 |
+| `npx rnd init` / `--force` / `--api-url …` | config만 다시 만들기 |
 | `npx rnd init --with-scripts` | `package.json`에 `build` / `deploy` 스크립트까지 추가 |
 | `npx rnd --help` | 전체 도움말 |
 
-`rnd build`와 `rnd deploy`는 실행한 폴더가 앱이 아니어도 됩니다. npm, pnpm, Yarn 워크스페이스에서 Expo 또는 `android/`가 있는 React Native 앱이 하나면 그 앱을 사용합니다. 저장소가 pnpm을 쓰더라도 그 컴퓨터에 pnpm이 없으면 npm으로 설치합니다. 앱이 여러 개면 `rnd.config.json`에 `appDir`을 적거나 `npx rnd build --cwd <앱 폴더>`로 지정합니다. Expo 명령은 `npx expo`로 다른 버전을 받지 않고, 그 저장소의 패키지 매니저로 이미 설치된 Expo를 실행합니다. 의존성이 없으면 워크스페이스 루트에서 install을 먼저 합니다. 그 install이 요구하는 Node.js 버전이 지금 버전보다 높으면, 스택 대신 필요한 버전을 출력하고 멈춥니다.
+`install`부터 같습니다. 프로젝트가 pnpm으로 적혀 있어도 그 컴퓨터에 pnpm이 없으면 npm으로 설치하고, Yarn만 있으면 Yarn을 씁니다. `rnd.config.json`이 없으면 이 단계에서 만듭니다. 앱 의존성이 없는 채로 `build`나 `deploy`를 실행해도 같은 설치를 먼저 합니다.
 
-pnpm·Yarn, 그리고 `--ignore-scripts` 설치는 의존성의 `postinstall`을 실행하지 않습니다. 이 경우 `rnd.config.json`이 생기지 않으니 설치 후 `npx rnd init`을 한 번 실행하세요.
+`rnd build`와 `rnd deploy`는 실행한 폴더가 앱이 아니어도 됩니다. npm, pnpm, Yarn 워크스페이스에서 Expo 또는 `android/`가 있는 React Native 앱이 하나면 그 앱을 사용합니다. 앱이 여러 개면 `rnd.config.json`에 `appDir`을 적거나 `npx rnd build --cwd <앱 폴더>`로 지정합니다. Expo 명령은 `npx expo`로 다른 버전을 받지 않고, 방금 설치에 쓴 패키지 매니저로 이미 설치된 Expo를 실행합니다. 그 install이 요구하는 Node.js 버전이 지금 버전보다 높으면, 스택 대신 필요한 버전을 출력하고 멈춥니다.
 
 `rnd init`은 기본적으로 `rnd.config.json`만 만들고 `package.json`은 건드리지 않습니다. 모노레포 루트에서는 `build` / `deploy`가 보통 워크스페이스로 분기하므로, 덮어쓰기를 원할 때만 `--with-scripts`를 붙이세요.
 

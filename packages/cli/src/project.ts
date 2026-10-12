@@ -425,6 +425,56 @@ function packageJsonForNpm(pkg: PackageJson, fromDir: string, packages: Map<stri
   };
 }
 
+const RND_GIT = 'github:betterafter/react-native-deploy';
+
+function declaresRnd(dir: string): boolean {
+  const pkg = readPkg(dir);
+  return Boolean(pkg?.dependencies?.rnd || pkg?.devDependencies?.rnd);
+}
+
+/** Remember the CLI in package.json so the next `npx rnd` does not look up a different registry package. */
+function ensureRndDeclared(project: ResolvedProject): void {
+  if (declaresRnd(project.workspaceRoot) || declaresRnd(project.appDir)) return;
+  const target = existsSync(join(project.workspaceRoot, 'package.json'))
+    ? project.workspaceRoot
+    : project.appDir;
+  const pkg = readPkg(target);
+  if (!pkg) return;
+  writeFileSync(
+    join(target, 'package.json'),
+    `${JSON.stringify({ ...pkg, devDependencies: { ...pkg.devDependencies, rnd: RND_GIT } }, null, 2)}\n`,
+  );
+  process.stdout.write(`Added rnd to ${join(target, 'package.json')}\n`);
+}
+
+function installTree(
+  dir: string,
+  manager: PackageManager,
+  packages: Map<string, string>,
+  ignoreScripts: boolean,
+): void {
+  const pkgPath = join(dir, 'package.json');
+  if (!existsSync(pkgPath)) return;
+  const original = readFileSync(pkgPath, 'utf8');
+  const pkg = readPkg(dir);
+  const rewritten = pkg ? packageJsonForNpm(pkg, dir, packages) : null;
+  const changed = Boolean(rewritten && pkg && JSON.stringify(rewritten) !== JSON.stringify(pkg));
+  const lockPath = join(dir, 'package-lock.json');
+  const hadLock = existsSync(lockPath);
+  process.stdout.write(`Running ${manager} install in ${dir}…\n`);
+  try {
+    if (changed && rewritten) writeFileSync(pkgPath, `${JSON.stringify(rewritten, null, 2)}\n`);
+    const args =
+      manager === 'npm'
+        ? ['install', '--no-package-lock', ...(ignoreScripts ? ['--ignore-scripts'] : [])]
+        : ['install'];
+    runCommand(manager, args, dir);
+  } finally {
+    if (changed) writeFileSync(pkgPath, original);
+    if (!hadLock && existsSync(lockPath)) unlinkSync(lockPath);
+  }
+}
+
 function installDependencies(project: ResolvedProject): void {
   if (project.packageManager === 'pnpm') {
     process.stdout.write(`Running pnpm install in ${project.workspaceRoot}…\n`);
@@ -432,26 +482,31 @@ function installDependencies(project: ResolvedProject): void {
     return;
   }
 
-  const installDir = project.appDir;
-  const pkgPath = join(installDir, 'package.json');
-  const original = existsSync(pkgPath) ? readFileSync(pkgPath, 'utf8') : null;
-  const pkg = readPkg(installDir);
-  const rewritten = pkg
-    ? packageJsonForNpm(pkg, installDir, workspacePackageIndex(project.workspaceRoot))
-    : null;
-  const lockPath = join(installDir, 'package-lock.json');
-  const hadLock = existsSync(lockPath);
-  process.stdout.write(`Running ${project.packageManager} install in ${installDir}…\n`);
-  try {
-    if (rewritten && original != null && JSON.stringify(rewritten) !== JSON.stringify(pkg)) {
-      writeFileSync(pkgPath, `${JSON.stringify(rewritten, null, 2)}\n`);
-    }
-    const args = project.packageManager === 'npm' ? ['install', '--no-package-lock'] : ['install'];
-    runCommand(project.packageManager, args, installDir);
-  } finally {
-    if (original != null) writeFileSync(pkgPath, original);
-    if (!hadLock && existsSync(lockPath)) unlinkSync(lockPath);
-  }
+  const packages = workspacePackageIndex(project.workspaceRoot);
+  const separateApp = resolve(project.appDir) !== resolve(project.workspaceRoot);
+  installTree(project.workspaceRoot, project.packageManager, packages, separateApp);
+  if (separateApp) installTree(project.appDir, project.packageManager, packages, false);
+}
+
+/** Install the app, and the CLI if this project does not depend on it yet. */
+export function installProject(project: ResolvedProject): void {
+  assertNodeForInstall(project.workspaceRoot);
+  assertNodeForInstall(project.appDir);
+  ensureRndDeclared(project);
+  installDependencies(project);
+}
+
+function appReady(project: ResolvedProject): boolean {
+  if (!existsSync(join(project.appDir, 'node_modules'))) return false;
+  if (project.hasExpo && !moduleInstalled(project.appDir, 'expo')) return false;
+  return true;
+}
+
+/** Used by build/deploy so a fresh checkout does not need a separate package-manager install. */
+export function ensureInstalled(project: ResolvedProject): void {
+  if (appReady(project)) return;
+  process.stdout.write('Dependencies are not installed. ');
+  installProject(project);
 }
 
 export function ensureDependency(project: ResolvedProject, name: string): void {

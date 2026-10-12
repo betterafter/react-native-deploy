@@ -7,6 +7,7 @@ import {
 } from 'node:fs';
 import { join, resolve } from 'node:path';
 import {
+  ensureInstalled,
   rememberAndroidArtifact,
   resolveProject,
   runCommand,
@@ -46,6 +47,7 @@ export function runRndBuild(opts: {
   const out: BuildResult = {};
   process.stdout.write(`App → ${cwd}\n`);
   process.stdout.write(`Package manager → ${project.packageManager}\n`);
+  ensureInstalled(project);
 
   if (platform === 'android' || platform === 'all') {
     const androidDir = join(cwd, 'android');

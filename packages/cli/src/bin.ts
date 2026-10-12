@@ -21,7 +21,7 @@ import {
 } from './credentials.js';
 import { deployExport } from './export-deploy.js';
 import { resolveConsumerRoot, scaffoldRndConfig } from './init-config.js';
-import { resolveProject, runExpo, type ResolvedProject } from './project.js';
+import { installProject, resolveProject, runExpo, type ResolvedProject } from './project.js';
 import { normalizeBaseUrl } from './url.js';
 
 type Platform = 'ios' | 'android';
@@ -439,6 +439,29 @@ addDeployOptions(
 ).action(async (opts) => {
   await runDeploy(opts);
 });
+
+program
+  .command('install')
+  .description('Install app dependencies with npm, pnpm, or Yarn — whichever is installed')
+  .option('--cwd <path>', 'App directory. Default: this folder, or the Expo/RN app in a workspace')
+  .action((opts: { cwd?: string }) => {
+    const project = resolveProject(process.cwd(), {
+      appDir: opts.cwd ? resolve(process.cwd(), opts.cwd) : undefined,
+    });
+    process.stdout.write(`App → ${project.appDir}\n`);
+    process.stdout.write(`Package manager → ${project.packageManager}\n`);
+    installProject(project);
+    const hasConfig = [project.configDir, project.appDir].some((dir) =>
+      existsSync(resolve(dir, 'rnd.config.json')),
+    );
+    if (!hasConfig) {
+      const result = scaffoldRndConfig({ cwd: project.configDir });
+      if (result.created) process.stdout.write(`Created ${result.path}\n`);
+    }
+    process.stdout.write(
+      `Next:\n  npx rnd token add\n  npx rnd build\n  npx rnd deploy -m "메모"\n`,
+    );
+  });
 
 program
   .command('init')
