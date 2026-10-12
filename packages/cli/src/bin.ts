@@ -283,7 +283,15 @@ function shouldRunExpoExport(
 function runExpoExport(project: ResolvedProject, outputDir: string) {
   const abs = resolve(project.configDir, outputDir);
   process.stdout.write(`Running expo export → ${abs}…\n`);
-  runExpo(project, ['export', '--output-dir', abs]);
+  runExpo(project, [
+    'export',
+    '--platform',
+    'android',
+    '--platform',
+    'ios',
+    '--output-dir',
+    abs,
+  ]);
 }
 
 async function runDeploy(opts: Record<string, string | boolean | undefined>) {

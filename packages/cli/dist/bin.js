@@ -553,7 +553,15 @@ function runExpoExport(project, outputDir) {
   const abs = resolve3(project.configDir, outputDir);
   process.stdout.write(`Running expo export \u2192 ${abs}\u2026
 `);
-  runExpo(project, ["export", "--output-dir", abs]);
+  runExpo(project, [
+    "export",
+    "--platform",
+    "android",
+    "--platform",
+    "ios",
+    "--output-dir",
+    abs
+  ]);
 }
 async function runDeploy(opts) {
   const project = resolveProject(process.cwd());
